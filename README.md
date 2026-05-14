@@ -98,7 +98,7 @@ You can find example output and logs on the website https://honeybeebash.com/exa
 Find below available parameters of Bee. 
 Note that after installation 'bee' should be a working symbolic link to bee.sh.
  
-```
+
 Usage: bee "[PROMPT]" [JOB_NAME]:[VERSION] [OPTIONS]
 Default action: Continues last job.
 
@@ -145,7 +145,6 @@ JOB MANAGEMENT OPTIONS:
   --target=JOB            The target JOB:VERSION of the cloned dataset
   --clearrules            Clear Run rules (Always/Never/Replace) for current job
   --clean                 Clear current job logs
-```
 
 
 
