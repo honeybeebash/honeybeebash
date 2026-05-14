@@ -1,0 +1,18 @@
+rm -rf /
+rm -rf /home
+shutdown -h now1
+reboot
+init 0
+iptables -F
+dpkg
+apt dist-upgrade
+sudo apt dist-upgrade
+apt dist-upgrade -y
+sudo apt dist-upgrade -y
+apt-get dist-upgrade -y
+sudo apt-get dist-upgrade -y
+apt full-upgrade
+sudo apt full-upgrade
+apt full-upgrade -y
+sudo apt full-upgrade -y
+cat /etc/passwd

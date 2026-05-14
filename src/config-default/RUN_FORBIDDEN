@@ -1,0 +1,12 @@
+shutdown
+reboot
+mkfs
+dd
+fdisk
+mkfs
+mkfs.ext4
+nano
+vim
+vm
+less
+ssh

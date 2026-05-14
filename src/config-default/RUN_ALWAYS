@@ -1,0 +1,22 @@
+cat /etc/os-release
+cat /proc/cpuinfo
+date
+df
+df -h
+df -H
+df -i
+docker images
+docker ps
+docker ps -a
+docker stats --no-stream
+docker system df
+free -h
+free -m
+ps aux --sort=-%cpu | head -n 5
+ps aux --sort=-%mem | head -n 5
+pwd
+top -n 1
+top -n 1 -b
+uname -a
+uptime
+whoami

