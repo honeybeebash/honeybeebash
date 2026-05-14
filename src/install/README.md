@@ -1,3 +1,4 @@
+```text
 # ---------------------------------------------------------
 # HoneyBeeBash Installer Scripts
 # Includes:
@@ -5,7 +6,7 @@
 # ---------------------------------------------------------
 
 
-Information:
+## Information:
 
 ! IMPORTANT: Avoid permission complications. DO NOT install HoneyBeeBash in a user directory !
 
@@ -21,7 +22,7 @@ An example of locking Nvidia driver packages is shown in install/lock-versions.s
 
 
 
-Requirements:
+## Requirements:
 
 Python3 is required to run the detector.py script.
 pip3 is required to install python modules like Sci-Kit and Google-genai
@@ -39,7 +40,7 @@ We are working on a combined install script for this but some are already availa
 
 
 
-Installation targets:
+## Installation targets:
 
 The global/default configuration will be stored in the user its home directory as;
 $HOME/.config/honeybeebash directory.
@@ -59,7 +60,7 @@ The below scripts will be installed into the /opt/honeybeebash directory;
 
 
 
-Installation scripts:
+## Installation scripts:
 
 The install/install.sh script has been provided to do as much of the installation work as possible for the average Linux system. It calls upon the install-scikit.sh script for installation of python modules. If in any case an installation was not possible you will be informed to attempt a reinstall or a manual install.
 
@@ -84,7 +85,7 @@ bee "
 
 
 
-Manual installation:
+## Manual installation:
 
 If you prefer or are required to manually install the dependancies then find follow the steps below. 
 You can also read the installation scripts themselfs to find what is required to install.
@@ -94,6 +95,4 @@ First install python3 and pip3.
 Then install numpy, scikit-learn, pandas and joblib and google-genai.
 Note that 'scikit-learn' when installed is listed as 'sklearn'.
 
-
-
-
+```

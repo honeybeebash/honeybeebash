@@ -1,3 +1,4 @@
+```text
 # ---------------------------------------------------------
 # HoneyBeeBash v1.0.0 (The "Pearl" Guard)
 # Controlled by AI: LAN or GeminiFlash or GoogleApi
@@ -10,7 +11,7 @@
 
 
 
-Summary:
+## Summary:
 
 HoneyBeeBash is a lightweight bash server tool built for direct, broad scale server and process maintenance.
 
@@ -24,7 +25,7 @@ It is designed for initial supervised deployment. Users must calibrate rulesets 
 
 
 
-Introduction:
+## Introduction:
 
 HoneyBeeBash (Bee for short) is designed to inherit the ability for total administrator Linux system control by AI through a bash shell.
 This power is harnassed to perform recovery and maintenance tasks in depth.
@@ -37,9 +38,11 @@ Handles complex reasoning and task planning.
 The Survival Instinct (Signatures & SciKit Heuristics)
 A "primitive" safety layer that intercepts "Slash Scares" (malformed or dangerous commands) before they reach the kernel. Even if the AI fails, the signature-based safety net prevents system-level catastrophes.
 
-System Architecture:
+
+
+## System Architecture:
 The framework operates on a feedback loop where AI-driven logic is constrained by rigid, heuristic safety boundaries as shown below:
-```
+
       HIVE <--> QUEENBEE <--> MONITOR
                     ^           ^     
                     v           |              
@@ -48,12 +51,13 @@ The framework operates on a feedback loop where AI-driven logic is constrained b
    GLOBAL RULES --> X <-- JOB RULES   |
                     v                 |
       OS <--> BASH CONTROL --> COMMAND OUTPUT
-```
+
 
 Built to be fast, transparent, and community-driven.
 
 
-Requirements:
+
+## Requirements:
 
 Python3 is required to run the detector.py script.
 pip3 is required to install python modules like Sci-Kit and Google-genai
@@ -73,7 +77,7 @@ For information on the installation process see the README.md in the install fol
 
 
 
-Run examples:
+## Run examples:
 
 > bee                                       - Continue existing job or start (first) default job 
 > bee "Skip mail logs."                     - Continue with tip
@@ -89,7 +93,7 @@ You can find example output and logs on the website https://honeybeebash.com/exa
 
 
 
-Usage:
+## Usage:
 
 Find below available parameters of Bee. 
 Note that after installation 'bee' should be a working symbolic link to bee.sh.
@@ -145,7 +149,7 @@ JOB MANAGEMENT OPTIONS:
 
 
 
-Execute Approval:
+## Execute Approval:
 
 Bee will ask you if it can execute certain commands. You can press a key to answer to such request. 
 
@@ -162,7 +166,7 @@ In the shell you can answer to these request using the following keys;
 
 
 
-Workspace:
+## Workspace:
 
 Each running Bee can handle one job/session.
 For each job a 'job directory' is created in the user its $HOME/.local/share/workspace.
@@ -213,7 +217,7 @@ tmp/            Any files that Bee found temporarly usefull to store data for th
 
 
 
-Memory:
+## Memory:
 
 Bee has a memory directory to use as temporary memory if needed and is instructed to use it.
 Memory is wiped when starting a new session.
@@ -226,7 +230,7 @@ Bee also comes with a ready-to-go remote mode that connects to Gemini Flash to m
 
 
 
-Bash tools:
+## Bash tools:
 
 Bee comes with a few scripted tools to make its work easier and keep code overhead low.
 
@@ -235,7 +239,7 @@ tools/merge.sh - Used by Bee to collect training data and merge with the default
 
 
 
-Monitor tool:
+## Monitor tool:
 
 Bee comes with a monitor/dashboard allowing you to easily follow its progress, view its logs, change jobs, run Bee's and more.
 All the information in the monitor is available in files but the monitor shows them in realtime one one screen and allows easy switching.
@@ -259,7 +263,7 @@ This launches bee.sh in a new virtual session that you can re-connect to from a 
 
 
 
-Bee Profile and Configuration:
+## Bee Profile and Configuration:
 
 The Bee Bash script requires config/bee.conf to manage LLM selection, timeouts, and security modes. This file is generated during installation; manual alteration is rarely required.
 
@@ -290,7 +294,7 @@ The global rulesets are used to protect you from known risks on the system it ru
 
 
 
-Risk Mitigation measures:
+## Risk Mitigation measures:
 
 The tiered defence brings black and whitelist guarrantees as well as dynamic training and learning capabilities.
 The Signature Tier relies on exact matches in RUN_ALWAYS, RUN_NEVER and RUN_REPLACE as well as string based matches in RUN_FORBIDDEN.
@@ -329,7 +333,7 @@ When the Bee attempts to use a command suggested by the LLM, the model calculate
 
 
 
-Import/Export via HiveHub:
+## Import/Export via HiveHub:
 
 HoneyBeeBash supports sharing of datasets (configuration files) to improve the quality and security for the entire community. These files are managed via HiveHub, the central HoneyBee Hive repository.
 
@@ -338,7 +342,8 @@ HiveHub categorizes configurations by distribution. Users can submit (--export),
 The listing can be browser per distro or searched for rulesets for a specific job. 
 
 
-Privacy and Security:
+
+## Privacy and Security:
 
 Rulesets may contain identifiable arguments from manual approvals. While HiveHub filters and reviews submissions for profanity and PII (Personally Identifiable Information), users should review rulesets before exporting to ensure data is anonymized. 
 
@@ -350,7 +355,7 @@ All files are stored in plain ascii and can be reviewed using any editor or the 
 
 
 
-Import Flags:
+## Import Flags:
 
 Bee will import the default job for your distro on startup.
 Find below examples to add more jobs for bee by importing them from HiveHub.
@@ -370,7 +375,7 @@ To import the distro specific global run rules the below command only imports th
 
 
 
-Export Flags:
+## Export Flags:
 
 To share your custom altered jobs with the rest of our Bee community you can export them using the below flags;
 
@@ -394,7 +399,7 @@ Set and store your obtained HiveHub API key.
 
 
 
-Bee Runtime tips:
+## Bee Runtime tips:
 
 The default prompt size is around 2000 tokens. 
 
@@ -416,7 +421,7 @@ You can add a honeybee user to the sudoers list or call bee with sudo -E.
 Using the -E flag preserves the environment so all files and packages can be found.
 
 > sudo -E bee
-
+```
 
 
   
