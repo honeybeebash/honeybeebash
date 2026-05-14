@@ -12,7 +12,7 @@ fi
 #      ___  \___/  ___      HONEYBEEBASH / BEE.SH 
 #     /   \ (0 0) /   \     _________________________________
 #    |  M  |  X  |  M  |    AUTONOMOUS MAINTENANCE
-#    |_____/ @@@ \_____|    QUAD-TIERED DEFENSERISK MIGITATION 
+#    |_____/ @@@ \_____|    QUAD-TIERED RISK MIGITATION 
 #            @@@@@          SIGNATURE + HEURISTIC + LLM
 #             @@@           _________________________________
 #              V            SCIKIT PANDA SECURITY RESEARCH
