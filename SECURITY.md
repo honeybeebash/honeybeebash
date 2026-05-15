@@ -22,6 +22,7 @@ If you discover a potential security flaw in HoneyBeeBash, please help us keep t
 ### Tips:
 - Run bee with the --verbose=2 flag for maximum output
 - Run bee with the --debug=3 flag for maximum debug output
+- Include related job dataset using the --review={jobname} flag
 
 ### Our Commitment:
 * I will acknowledge your report within **48 hours**.
