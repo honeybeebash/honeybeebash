@@ -34,8 +34,9 @@ It is designed for initial supervised deployment. Users must calibrate rulesets 
 
 ## Introduction:
 
-HoneyBeeBash (Bee for short) is designed to inherit the ability for total administrator Linux system control by AI through a bash shell.
-This power is harnassed to perform recovery, maintenance and review tasks in depth.
+HoneyBeeBash (Bee for short) is designed to safely grant an AI model structured, administrative Linux system access through a native Bash shell.
+
+This power is harnessed to perform recovery, maintenance and review tasks in depth.
 
 Unlike standard LLM-based agents that may hallucinate destructive commands, Bee.sh utilizes a hybrid cognitive model:
 
@@ -43,7 +44,7 @@ The Pre-frontal Cortex (AI)
 Handles complex reasoning and task planning.
 
 The Survival Instinct (Signatures & SciKit Heuristics)
-A "primitive" safety layer that intercepts "Slash Scares" (malformed or dangerous commands) before they reach the kernel. Even if the AI fails, the signature-based safety net prevents system-level catastrophes.
+A "primitive" safety layer that intercepts intercepts destructive path execution attempts (malformed or dangerous commands) before they reach the kernel. Even if the AI fails, the signature-based safety net prevents system-level catastrophes.
 
 The Human Factor
 If the LLM cannot decide if the command is low risk it will request human response to proceed. 
@@ -71,10 +72,10 @@ Note that the QueenBee hive tool requires an upgrade.
 Python3 is required to run the detector.py script.
 pip3 is required to install python modules like Sci-Kit and Google-genai
 
-The below listed common tools are required and will be installed automaticly if needed;
+The below listed common tools are required and will be installed automatically if needed;
 bc, awk, curl, wget, jq, zip, unzip, dos2unix, screen, openssl
 
-The following required Python modules will be installed automaticly if needed;
+The following required Python modules will be installed automatically if needed;
 sciKit-learn, pandas, joblib
 
 For local LLM usage the following are suggested;
@@ -93,8 +94,8 @@ For information on the installation process see the README.md in the install fol
 > bee new "job_name"                        - Start new job with default prompt
 > bee new "Custom prompt" "job_name"        - Start new job with custom prompt
 > bee "How much RAM do i have ?"            - End with a ? character to ask a system related question
-> bee --ask "Where to pinguins live ?"      - Ask a general question report answer and exit
-> bee --import=zombie-hunt                  - Import and run the version lamp of the service-check job 
+> bee --ask "Where to penguins live ?"      - Ask a general question report answer and exit
+> bee --import=zombie-hunt                  - Import and run the default version of the zombie-hunt job 
 > bee --forget "cmd"                        - Run the unlearn script for a specific command
 > bee --merge                               - Merge job rules with global rules
 
@@ -142,7 +143,7 @@ DATA & RULE OPTIONS:
   --forget=\"CMD\"         Remove a command from the job rulesets
 
 LLM MODEL OPTIONS:
-  --model=MODEL           Chante active LLM resource (local, geminiflash, googleapi)
+  --model=MODEL           Change active LLM resource (local, geminiflash, googleapi)
   --googleapikey=key      Set and store your obtained Google API key
 
 JOB MANAGEMENT OPTIONS:
@@ -150,7 +151,7 @@ JOB MANAGEMENT OPTIONS:
   --new [JOB]             Start new job & clear logs (or use 'new' as 1st arg)
   --jobs                  Lists all local available jobs
   --drop=JOB              Permanently delete a specific job directory
-  --clone]JOB             Copy a specific local dataset to a the one specified in --target 
+  --clone=JOB             Copy a specific local dataset to a the one specified in --target 
   --target=JOB            The target JOB:VERSION of the cloned dataset
   --clearrules            Clear Run rules (Always/Never/Replace) for current job
   --clean                 Clear current job logs
@@ -177,7 +178,7 @@ In the shell you can answer to these request using the following keys;
 ## Workspace:
 
 Each running Bee can handle one job/session.
-For each job a 'job directory' is created in the user its $HOME/.local/share/workspace.
+For each job a 'job directory' is created in the user's $HOME/.local/share/workspace.
 
 Upon starting a new job the default BEE_PROFILE, BEE_RULES and BEE_PLANNING are copied to the new workspace directory.
 The global RUN_* files are not copied as they are active on each run together with the job RUN_* files.
@@ -193,7 +194,7 @@ PLAN            The generated step based plan
 FACTS           Gathered usefull facts
 FOCUS           A summary with goal, planning, input, next command and explanation.
 HISTORY         A compacted history of given command and received result
-JOURMAL         A full journal of all information this session (auto rotates)
+JOURNAL         A full journal of all information this session (auto rotates)
 LOG             A full log of given prompts and received response
 PROMPTLOG       A log of just the given prompts
 LASTPROMPT      The last full formatted prompt used
@@ -215,13 +216,13 @@ RUN_REPLACE     Bash command lines that are replaced
 cache/
 dataset.csv
 model.pkl       The trained algorithm model (the weights)
-vectorizer.pkl  The trained numerical model (the dictionairy)
+vectorizer.pkl  The trained numerical model (the dictionary)
 
 memory/         Any data files that Bee decides to use as long term memory for this job
 archive/        Any data to be archived Bee will store here.
-tmp/            Any files that Bee found temporarly usefull to store data for this job
+tmp/            Any files that Bee found temporarly useful to store data for this job
 
-! Workspace files other then the profile, rules and dataset.csv are deleted when starting a new session.
+! Workspace files other than the profile, rules and dataset.csv are deleted when starting a new session.
 
 
 
@@ -233,8 +234,8 @@ Note: Training the Bee generates cache/vectorizer.pkl and cache/model.pkl in the
 
 Privacy risks and chills:
 Bee comes with a local and remote mode allowing for use of local LAN basee ollama models to aid in the job.
-This guarantee's no data of your system makes it to the outside world at ZERO token costs other then the power bill.
-Bee also comes with a ready-to-go remote mode that connects to Gemini Flash to make use of its enourmouse context window. 
+This guarantees no data of your system makes it to the outside world at ZERO token costs other then the power bill.
+Bee also comes with a ready-to-go remote mode that connects to Gemini Flash to make use of its enourmous context window. 
 
 
 
@@ -250,7 +251,7 @@ tools/merge.sh - Used by Bee to collect training data and merge with the default
 ## Monitor tool:
 
 Bee comes with a monitor/dashboard allowing you to easily follow its progress, view its logs, change jobs, run Bee's and more.
-All the information in the monitor is available in files but the monitor shows them in realtime one one screen and allows easy switching.
+All the information in the monitor is available in files but the monitor shows them in realtime on one screen and allows easy switching.
 
 The monitor should provide all information to run and verify Bee's work. 
 In the Monitor you can also answer the execution approval request with the exception of Replace and Followup. 
@@ -262,7 +263,7 @@ Run the monitor in another shell or if Bee is running in the background;
 > monitor
 
 Use the '?' key to view options.
-Note that the monitor has activity tracking by PID and uses 'kill 0' to check status of the user its bees. Run the monitor with sudo -E to follow any job of any user.
+Note that the monitor has activity tracking by PID and uses 'kill 0' to check status of the user's bees. Run the monitor with sudo -E to follow any job of any user.
 
 The monitor can also launch Bee's, to do so press B and enter its parameters "prompt" and "jobname" or leave all empty for the default job.
 This launches bee.sh in a new virtual session that you can re-connect to from a terminal using the command;
@@ -277,16 +278,16 @@ The Bee Bash script requires config/bee.conf to manage LLM selection, timeouts, 
 
 Bee utilizes profiles and rulesets to instruct the LLM. While these files are fully customizable, ensure they do not exceed the configured LLM context size.
 
-BEE_PROFILE   - Describes the non-technical response behaviour of Bee
+BEE_PROFILE   - Describes the non-technical response behavior of Bee
 BEE_PLANNING  - Describes the instructions for the first planning step
 BEE_RULES     - Describes the instructions and rules for the actual job work 
 DEFAULT_INPUT - This is the default input for the LLM for this job 
 
 Bee always applies the profile and instructions from its job directory to instruct the LLM.
 For protection it applies the global RUN-rules (distro specific) as well as the job RUN-rules (job specific).
-This seperation allows users to safely vary the rules per job while maintaining a global protection layer.
+This separation allows users to safely vary the rules per job while maintaining a global protection layer.
 
-RUN-rules declare commandlines that are trusted, undesired or replacable with a local fitting alternative. These rules are processed before any command is executed. The following RUN-rules are applied;
+RUN-rules declare commandlines that are trusted, undesired or replaceable with a local fitting alternative. These rules are processed before any command is executed. The following RUN-rules are applied;
 
 RUN_FORBIDDEN: Immediate rejection if a blacklisted string is detected.
 RUN_ALWAYS: Immediate execution for verified, high-trust command patterns.
@@ -304,20 +305,20 @@ The global rulesets are used to protect you from known risks on the system it ru
 
 ## Risk Mitigation measures:
 
-The tiered defence brings black and whitelist guarrantees as well as dynamic training and learning capabilities.
+The tiered defence brings black and whitelist guarantees as well as dynamic training and learning capabilities.
 The Signature Tier relies on exact matches in RUN_ALWAYS, RUN_NEVER and RUN_REPLACE as well as string based matches in RUN_FORBIDDEN.
-The Heuristic Tier does Pattern recognition and probability on .pky models.
+The Heuristic Tier does Pattern recognition and probability on .pkl models.
 
-To enable autonmous jobs Bee has 3 automation modes which are;
+To enable autonomous jobs Bee has 3 automation modes which are;
 
 - RESTRICTIVE = Automate on perfect safety score only
-- PERMISSIVE = Automate on <10% threat score
+- PERMISSIVE = Automate on =<10% threat score
 - MANUAL = No automation, approve all commands
 
 The tiered defence processes in the following order;
 
 Normalization: Check RUN_REPLACE. If it matches, swap the command.
-Signature Check (Known): Does it contain a known undesiresd string. If yes, WARN.
+Signature Check (Known): Does it contain a known undesired string. If yes, WARN.
 Signature Check (White): Is it in RUN_ALWAYS? If yes, EXECUTE.
 Signature Check (Black): Is it in RUN_NEVER? If yes, WARN.
 Heuristic Check (Local): Run detector.py.
@@ -329,7 +330,7 @@ Manual Intervention: If it survives the first 4 steps but isn't "Trusted," it hi
 
 The heuristic learning detection layer [SciKit Panda]:
 
-Scikit-learn is a massive library for Machine Learning. This library is applied in the detectory.py script that uses a training dataset to learn command rules to detect undesired commands. 
+Scikit-learn is a massive library for Machine Learning. This library is applied in the detector.py script that uses a training dataset to learn command rules to detect undesired commands. 
 
 The code follows a standard "Train then Predict" workflow:
 
@@ -347,7 +348,7 @@ HoneyBeeBash supports sharing of datasets (configuration files) to improve the q
 
 HiveHub categorizes configurations by distribution. Users can submit (--export), download (manual or with --import), upvote and downvote rulesets. 
 
-The listing can be browser per distro or searched for rulesets for a specific job. 
+The listing can be browsed per distro or searched for rulesets for a specific job. 
 
 
 
@@ -393,7 +394,7 @@ To export only the bee profile and ruleset from that job.
 To export all including the bee profile, global and job ruleset.
 > bee.sh --exportall=JOB
 
-To process your export and authorise at our API the following flag is required when exporting;
+To process your export and authorize at our API the following flag is required when exporting;
 
 > bee.sh --exporttext="TEXT"     Provide a text description for your export package.
 
@@ -415,12 +416,12 @@ Bee will often loop over the same command to see variations in time.
 
 Avoid answering Always to commands with usernames, use Yes to teach.
 
-Run --verbose=2 for maximum output. Suggest you turn your screen 90 degrees as it is alot of output.
+Run --verbose=2 for maximum output. Suggest you turn your screen 90 degrees as it is a lot of output.
 
 For now Bee has no mail support but Bee can be instructed to write to files in its workspace sub folders. 
 Such files could be used to detect and mail the results to the user.
 
-For long running jobs like monitor jobs i suggest setting the --delay value longer then the default 5 seconds.
+For long running jobs like monitor jobs i suggest setting the --delay value longer than the default 5 seconds.
 
 If issues occur or you are curious about more internal functioning then you can add the flag --debug=3 for maximum debug output.
                 
