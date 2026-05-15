@@ -27,10 +27,10 @@ An example of locking Nvidia driver packages is shown in install/lock-versions.s
 Python3 is required to run the detector.py script.
 pip3 is required to install python modules like Sci-Kit and Google-genai
 
-The below listed common tools are required and will be installed automaticly if needed;
+The below listed common tools are required and will be installed automatically if needed;
 bc, awk, curl, wget, jq, zip, unzip, dos2unix, screen, openssl
 
-The following required Python modules will be installed automaticly if needed;
+The following required Python modules will be installed automatically if needed;
 sciKit-learn, pandas, joblib
 
 For local LLM usage the following are suggested;
@@ -42,7 +42,7 @@ We are working on a combined install script for this but some are already availa
 
 ## Installation targets:
 
-The global/default configuration will be stored in the user its home directory as;
+The global/default configuration will be stored in the user's home directory;
 $HOME/.config/honeybeebash directory.
 
 The LLM model files will be stored in the user its home directory as;
@@ -54,7 +54,7 @@ $HOME/.local/share/honeybeebash/workspace
 The below scripts will be installed into the /opt/honeybeebash directory;
 - bee.sh
 - monitor.sh
-- detectory.py
+- detector.py
 - tools/*
 - backpack/ with python modules
 
@@ -78,7 +78,7 @@ You will be prompted to answer configuration settings.
 
 When completed you can run Bee.
 If installed to a venv (by default) you must enter that container first using;
-> source "opt/honeybeebash/backpack/bin/activate"
+> source "/opt/honeybeebash/backpack/bin/activate"
 
 Then run Bee with for example;
 bee "
@@ -87,8 +87,8 @@ bee "
 
 ## Manual installation:
 
-If you prefer or are required to manually install the dependancies then find follow the steps below. 
-You can also read the installation scripts themselfs to find what is required to install.
+If you prefer or are required to manually install the dependencies then find follow the steps below. 
+You can also read the installation scripts themselves to find what is required to install.
 
 First install python3 and pip3.
 
