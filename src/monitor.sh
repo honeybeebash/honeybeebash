@@ -1560,20 +1560,20 @@ while true; do
             ;;
         5) LOGACTION=""; TASK=""; TAB_NAME="LOCALBEE" ;;
         6) LOGACTION=""; SELECTED_LOG="$WSP/BEELOG"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
-        7) LOGACTION=""; SELECTED_LOG="$WSP/COMMANDLOG"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        8) LOGACTION=""; SELECTED_LOG="$WSP/REASONING"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        9) LOGACTION=""; SELECTED_LOG="$WSP/HISTORY"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
+        7) LOGACTION=""; SELECTED_LOG="$WSP/COMMANDLOG"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        8) LOGACTION=""; SELECTED_LOG="$WSP/REASONING"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        9) LOGACTION=""; SELECTED_LOG="$WSP/HISTORY"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
 
-        ")") LOGACTION=""; SELECTED_LOG="config/bee.conf"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" DO_CLEAR="true" ;;
-        "!") LOGACTION=""; SELECTED_LOG="$WSP/config/DEFAULT_INPUT"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        "@") LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_PROFILE"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        "#") LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_PLANNING"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        '$') LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_RULES"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        "%") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_FORBIDDEN"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        "^") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_ALWAYS"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        "&") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_NEVER"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        "*") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_REPLACE"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
-        "(") LOGACTION=""; SELECTED_LOG="$WSP/cache/dataset.csv"; TASK="SHOWLOG"; TAB_NAME="" DO_CLEAR="true" ;;
+        ")") LOGACTION=""; SELECTED_LOG="config/bee.conf"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true"  ;;
+        "!") LOGACTION=""; SELECTED_LOG="$WSP/config/DEFAULT_INPUT"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        "@") LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_PROFILE"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        "#") LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_PLANNING"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        '$') LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_RULES"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        "%") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_FORBIDDEN"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        "^") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_ALWAYS"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        "&") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_NEVER"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        "*") LOGACTION=""; SELECTED_LOG="$WSP/config/RUN_REPLACE"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
+        "(") LOGACTION=""; SELECTED_LOG="$WSP/cache/dataset.csv"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
 
         # --- SYSTEM ACTIONS & TOOLS ---
         "?"|"/") 
