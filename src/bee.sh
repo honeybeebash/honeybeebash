@@ -36,8 +36,8 @@ fi
 # bee new "job_name"                        - Start new job with default prompt
 # bee new "Custom prompt" "job_name"        - Start new job with custom prompt
 # bee "How much RAM do i have ?"            - End with a ? character to ask a system related question
-# bee --ask "Where to pinguins live ?"      - Ask a general question report answer and exit
-# bee --import=zombie-hunt                  - Import and run the version lamp of the service-check job 
+# bee --ask "Where to penguins live ?"      - Ask a general question report answer and exit
+# bee --import=zombie-hunt                  - Import and run the default version of the zombie-hunt job 
 # bee --forget "cmd"                        - Run the unlearn script for a specific command
 # bee --merge                               - Merge job rules with global rules
 
