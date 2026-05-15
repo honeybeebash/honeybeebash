@@ -1564,7 +1564,7 @@ while true; do
         8) LOGACTION=""; SELECTED_LOG="$WSP/REASONING"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
         9) LOGACTION=""; SELECTED_LOG="$WSP/HISTORY"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
 
-        ")") LOGACTION=""; SELECTED_LOG="config/bee.conf"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true"  ;;
+        ")") LOGACTION=""; SELECTED_LOG="$USER_CONFIG_DIR/bee.conf"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true"  ;;
         "!") LOGACTION=""; SELECTED_LOG="$WSP/config/DEFAULT_INPUT"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
         "@") LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_PROFILE"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
         "#") LOGACTION=""; SELECTED_LOG="$WSP/config/BEE_PLANNING"; TASK="SHOWLOG"; TAB_NAME=""; DO_CLEAR="true" ;;
