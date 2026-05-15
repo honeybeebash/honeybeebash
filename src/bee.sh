@@ -17,7 +17,7 @@ fi
 #             @@@           _________________________________
 #              V            SCIKIT PANDA SECURITY RESEARCH
 # ------------------------------------------------------------------------------
-# PROJECT:   BEE.SH (The HoneyBee Bash Agent)
+# PROJECT:   BEE.SH (The Buzzy Bash Agent)
 # PURPOSE:   Autonomous System Remediation
 # ------------------------------------------------------------------------------
 # STRATEGY:  Active trainable maintenance loop for Linux systems

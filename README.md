@@ -1,6 +1,6 @@
 ```text
 # ---------------------------------------------------------
-# HoneyBeeBash v1.0.0 (The "Pearl" Guard)
+# HoneyBeeBash (The Buzzy Bash Agent)
 # Controlled by AI: LAN or GeminiFlash or GoogleApi
 # Quad-Tiered Risk Mitigation LLM+Black+White+Trained
 # Inspired by: GitHub Open Source Security Community
@@ -10,25 +10,32 @@
 # ---------------------------------------------------------
 
 
+## Project Info
+**Version:** 1.0.0  
+**Author:** M.D.P de Clerck ([mike@clerck.nl](mailto:mike@clerck.nl))  
+**License:** [GNU General Public License v3](LICENSE)
+
 
 ## Summary:
 
-HoneyBeeBash is a lightweight bash server tool built for direct, broad scale server and process maintenance.
+HoneyBeeBash is a LLM geared lightweight bash server tool built for direct, broad scale server and process maintenance. 
 
 Bee was developed to assist the user with server maintenance. Providing deep discovery and a executable solutions while maintaining control over its impact.
 
 By operating directly in Bash it eliminates traditional middleware, securing the execution layer through a Quad-Tiered Command Validation architecture.
 
+Built to be fast, transparent, and community-driven.
+
 [!IMPORTANT]
 Bee.sh is not a "fire and forget" tool. 
-It is designed for initial supervised deployment. Users must calibrate rulesets to match their specific environment. 
+It is designed for initial supervised deployment. Users must calibrate rulesets to match their specific environment and/or job. 
 
 
 
 ## Introduction:
 
 HoneyBeeBash (Bee for short) is designed to inherit the ability for total administrator Linux system control by AI through a bash shell.
-This power is harnassed to perform recovery and maintenance tasks in depth.
+This power is harnassed to perform recovery, maintenance and review tasks in depth.
 
 Unlike standard LLM-based agents that may hallucinate destructive commands, Bee.sh utilizes a hybrid cognitive model:
 
@@ -38,6 +45,8 @@ Handles complex reasoning and task planning.
 The Survival Instinct (Signatures & SciKit Heuristics)
 A "primitive" safety layer that intercepts "Slash Scares" (malformed or dangerous commands) before they reach the kernel. Even if the AI fails, the signature-based safety net prevents system-level catastrophes.
 
+The Human Factor
+If the LLM cannot decide if the command is low risk it will request human response to proceed. 
 
 
 ## System Architecture:
@@ -52,8 +61,8 @@ The framework operates on a feedback loop where AI-driven logic is constrained b
                     v                 |
       OS <--> BASH CONTROL --> COMMAND OUTPUT
 
+Note that the QueenBee hive tool requires an upgrade. 
 
-Built to be fast, transparent, and community-driven.
 
 
 
@@ -71,7 +80,7 @@ sciKit-learn, pandas, joblib
 For local LLM usage the following are suggested;
 docker, ollama, qwen2.5-coder
 
-We are working on a combined install script for this but some are already available online.
+I am working on a combined install script for this but some are already available online.
 
 For information on the installation process see the README.md in the install folder.
 
