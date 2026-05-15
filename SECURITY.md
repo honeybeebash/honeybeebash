@@ -24,8 +24,8 @@ If you discover a potential security flaw in HoneyBeeBash, please help us keep t
 - Run bee with the --debug=3 flag for maximum debug output
 
 ### Our Commitment:
-* We will acknowledge your report within **48 hours**.
-* We will provide an estimated timeline for a fix.
+* I will acknowledge your report within **48 hours**.
+* I will provide an estimated timeline for a fix.
 * Once the fix is released, we will give you proper credit in our security advisories (unless you wish to remain anonymous).
 
 *Thank you for helping keep the HoneyBee ecosystem secure!*
