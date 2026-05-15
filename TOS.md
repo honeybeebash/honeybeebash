@@ -6,7 +6,7 @@ Provider: M.D.P de Clerck (the "Developer")
 
 Project Site: honeybeebash.com
 
-By installing HoneyBeeBash, accessing HiveHub Central, or purchasing Hive Repository access, you agree to be bound by the following Terms of Service. If you do not agree, do not install or use these tools.
+By installing HoneyBeeBash, accessing HiveHub, or purchasing Hive Repository access, you agree to be bound by the following Terms of Service. If you do not agree, do not install or use these tools.
 
 
 1. Risk Mitigation & Acceptance
