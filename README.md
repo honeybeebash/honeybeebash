@@ -429,6 +429,9 @@ Bee runs sudo itself but this will require you to authenticate with a password r
 You can add a honeybee user to the sudoers list or call bee with sudo -E.
 Using the -E flag preserves the environment so all files and packages can be found.
 
+Try to avoid approving Always to commands with specific user paths as these change per system or user.
+Answer such commands with Yes to train the system on the parameters. 
+
 > sudo -E bee
 ```
 
