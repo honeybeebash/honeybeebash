@@ -28,6 +28,7 @@ fi
 # ------------------------------------------------------------------------------
 # @version   1.0.0
 # @author    M.D.P de Clerck (mike@clerck.nl)
+# © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
 # ------------------------------------------------------------------------------
 # Example usage:
