@@ -4,7 +4,7 @@ BASE_DIR="/opt/honeybeebash"
 
 # Engine settings
 JOB_NAME="default"          # Start with job 'default'
-FILTER_TRIGGER="10000"      # In Characters to trigger filtering of command output
+FILTER_TRIGGER="4000000"    # Economy setting (legacy support)
 TIMEOUT="60"                # General network timeout
 BEE_DELAY=1                 # Seconds pause between LLM requests
 MAX_TIMEOUT="600"           # Absolute API timeout

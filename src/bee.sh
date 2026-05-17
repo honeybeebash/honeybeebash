@@ -45,10 +45,11 @@ fi
 
 
 # --- If sudo active then detect real user for profiles ---
+USER="$(whoami)"
 if [ -n "${SUDO_USER:-}" ]; then
     REAL_USER="$SUDO_USER"
 else
-    REAL_USER="$(whoami)"
+    REAL_USER="$USER"
 fi
 
 REAL_GROUP=$(id -gn $REAL_USER)
@@ -205,6 +206,7 @@ DO_IMPORT="false"
 DO_FORGET="false"
 DO_MERGE="false"
 DO_DROP="false"
+DO_REBUILD="false"
 DO_MODEL="false"
 DO_REVIEW="false"
 DO_CLEANUP="false"
@@ -280,7 +282,7 @@ while [[ $# -gt 0 ]]; do
 
         --clean)      DO_CLEANUP="true"; shift 1 ;;
         --clearrules) DO_CLEARRULES="true"; shift 1 ;;
-        --rebuild)    update_hive "rebuild" 0 0; remove_hive_model; shift 1 ;;
+        --rebuild)    DO_REBUILD="true"; shift ;;
 
         --model=*)
             # Set the model in the configuration
@@ -307,7 +309,7 @@ while [[ $# -gt 0 ]]; do
             sed -i '/GEMINI_API_KEY/d' "$USER_LOCAL_DIR/models/geminiflash.conf"
             echo "GEMINI_API_KEY=\"$EXPORT_API_KEY\"" >> "$USER_LOCAL_DIR/models/googleapi.conf"
             echo "GEMINI_API_KEY=\"$EXPORT_API_KEY\"" >> "$USER_LOCAL_DIR/models/geminiflash.conf"
-            echo "[NOTICE] $ICON_BEE Google API Key changed and stored."
+            echo "[NOTICE] Google API Key changed and stored."
             shift
             ;; 
 
@@ -361,7 +363,7 @@ while [[ $# -gt 0 ]]; do
             # Import only the bee profile and ruleset from that job.
             IMPORT_SET="${1#*=}"
             if [[ -z "$IMPORT_SET" ]]; then
-                end_program 1 "Missing jobname. Syntax: --export=jobname"
+                end_program 1 "Missing jobname. Syntax: --import=jobname"
             else
                 DO_IMPORT="job"
             fi
@@ -371,27 +373,37 @@ while [[ $# -gt 0 ]]; do
             # Import the global+job profile and ruleset from that job.
             IMPORT_SET="${1#*=}"
             if [[ -z "$IMPORT_SET" ]]; then
-                end_program 1 "Missing jobname. Syntax: --export=jobname"
+                end_program 1 "Missing jobname. Syntax: --importall=jobname"
             else
                 DO_IMPORT="all"
             fi
             shift
             ;;
         --importrules=*)
-            # Import the global+job profile and ruleset from that job.
+            # Import the ruleset from that job.
             IMPORT_SET="${1#*=}"
             if [[ -z "$IMPORT_SET" ]]; then
-                end_program 1 "Missing jobname. Syntax: --export=jobname"
+                end_program 1 "Missing jobname. Syntax: --importrules=jobname"
             else
                 DO_IMPORT="jobrules"
             fi
             shift
             ;;
         --importglobal=*)
-            # Import the global+job profile and ruleset from that job.
+            # Import the global profile and ruleset from that job.
             IMPORT_SET="${1#*=}"
             if [[ -z "$IMPORT_SET" ]]; then
-                end_program 1 "Missing jobname. Syntax: --export=jobname"
+                end_program 1 "Missing jobname. Syntax: --importglobal=jobname"
+            else
+                DO_IMPORT="global"
+            fi
+            shift
+            ;;
+        --importglobalrules=*)
+            # Import the global ruleset from that job.
+            IMPORT_SET="${1#*=}"
+            if [[ -z "$IMPORT_SET" ]]; then
+                end_program 1 "Missing jobname. Syntax: --importglobalrules=jobname"
             else
                 DO_IMPORT="globalrules"
             fi
@@ -525,6 +537,7 @@ if [[ -f "$USER_CONFIG_DIR/bee.conf" ]]; then
     CONFIG_FILE="$CONFIG_DIR/bee.conf"
     DEFAULT_CONFIG_FILE="$USER_CONFIG_DIR/bee.conf-default"
     source "$CONFIG_FILE"
+    APPLIED_MODEL_MAX_CHARACTERS="$FILTER_TRIGGER" # Legacy support
 else
     end_program 1 "Missing config file $USER_CONFIG_DIR/bee.conf"
 fi
@@ -590,7 +603,7 @@ else
     JOB_SESSION_FILE=""
     textdebug 0 "No session file, Job set to $JOB_NAME"
 fi
-if [[ -z " $JOB_NAME" ]]; then
+if [[ -z "$JOB_NAME" ]]; then
     end_program 1 "Could not select Job."
 fi
 
@@ -715,9 +728,9 @@ textbox() {
 
     # Write the face for the monitor
     if [[ -d "$JOB_DIR" ]]; then
-        echo -e "${GOLD}  '\___/\` ${NC}" > $JOB_DIR/BEEFACE
-        echo -e "${GOLD}   /${EYES}\\  ${NC}" >> $JOB_DIR/BEEFACE
-        echo -e "${GOLD}   \\${MOUTH}/" >> $JOB_DIR/BEEFACE
+        echo -e "${GOLD}  '\___/\` ${NC}" > "$JOB_DIR/BEEFACE"
+        echo -e "${GOLD}   /${EYES}\\  ${NC}" >> "$JOB_DIR/BEEFACE"
+        echo -e "${GOLD}   \\${MOUTH}/" >> "$JOB_DIR/BEEFACE"
     fi
 }
 textline(){
@@ -768,6 +781,18 @@ texterror() {
 textdebug 0 "Initializing..."
 textline 2 "Initializing Honeybee Bash agent... ${ORANGE}($(get_eyes "fly"))${NC}"
 
+
+# Model parameter init
+APPLIED_MODEL_MAX_CHARACTERS="100000" # Safety model min
+SELECTED_MODEL_MAX_CHARACTERS="$APPLIED_MODEL_MAX_CHARACTERS"
+SELECTED_MODEL_NAME="" 
+SELECTED_CONTEXT_SIZE=""
+SELECTED_MODEL_RETRY_TIMEOUT=5
+SELECTED_MODEL_BASE_URL=""
+GEMINI_API_KEY=""
+USE_ML_GUARD="false"
+
+# System and environment
 LINEAGE=$(grep -iP '^(ID_LIKE|ID)=' /etc/os-release | cut -d= -f2 | tr -d '"' | head -n 1)  # Linux Family
 HOSTNAME=$(hostname)
 SYSTEM=$(uname -a)
@@ -849,15 +874,16 @@ if [[ "$ENABLE_SCIKIT" == "true" ]]; then
     textdebug 0 'SciKit integrity : $PYTHON_BIN -c "import pandas; import sklearn"'
     set +e
     PY_CHECK=$($PYTHON_BIN -c "import pandas; import sklearn" 2>&1)
+    py_rc=$?
     set -e
     textdebug 0 "SciKit integrity : Result of import check=$PY_CHECK"
-    if [ $? -eq 0 ]; then
+    if [ "$py_rc" -eq 0 ]; then
         if [[ "$PY_CHECK" == *"No module named"* ]]; then
             end_program 1 "SciKit integrity : Missing Panda or SKLearn."
         fi
 
         textdebug 0 "SciKit integrity : Pandas and SKLearn detected"
-        USE_ML_GUARD=true
+        USE_ML_GUARD="true"
         ML_GUARD="${CYAN}ACTIVE${NC}"
         if [[ ! -f "$BASE_DIR/detector.py" ]]; then
             textdebug 0 "SciKit integrity : Missing detector.py"
@@ -867,14 +893,14 @@ if [[ "$ENABLE_SCIKIT" == "true" ]]; then
     else
         textdebug 0 "SciKit integrity : Missing Pandas or SKLearn"
         texterror "Brain (Scikit/Pandas) not found. Switching to Legacy Mode."
-        USE_ML_GUARD=false
+        USE_ML_GUARD="false"
         ML_GUARD="${RED}DOWN${NC}"
     fi
 else
     textdebug 0 "SciKit is disabled in config"
     ENABLE_SCIKIT="false"
 fi
- 
+
 
 
 # Script banner
@@ -1028,24 +1054,93 @@ prepare_job_workspace() {
         mv "$FILE".tmp "$FILE"
         textline 2 "Filtered dataset duplicates" "$JOB_DIR/cache/dataset.csv." "whatever" 
     fi
-    DATASET=$(cat $JOB_DIR/cache/dataset.csv)
+    DATASET=$(cat "$JOB_DIR/cache/dataset.csv")
     length=${#DATASET}
     if [ "$length" -lt "500" ]; then
         textbox 1 "The SciKit training dataset at $length characters seems small (incomplete)." "$JOB_DIR/cache/dataset.csv" "annoyed" 
     fi
 
-    #if [[ "$IS_SUDO" == "YES" ]]; then
-    $SUDO chown -R $REAL_USER:$REAL_GROUP "$JOB_DIR"
-    $SUDO chown -R $REAL_USER:$REAL_GROUP "$USER_CONFIG_DIR"
-    $SUDO chown -R $REAL_USER:$REAL_GROUP "$USER_LOCAL_DIR"
-    #fi
+    if [[ "$USER" == "root" ]]; then
+        chown -R $REAL_USER:$REAL_GROUP "$JOB_DIR"
+        chown -R $REAL_USER:$REAL_GROUP "$USER_CONFIG_DIR"
+        chown -R $REAL_USER:$REAL_GROUP "$USER_LOCAL_DIR"
+    fi
 }
 
 
 # Deleted the build data model for rebuild using dataset.csv
 remove_hive_model() {
-    rm -f $JOB_DIR/cache/*.pkl
+    rm -f "$JOB_DIR/cache/"*.pkl
 }
+
+
+#-------------------------------------------------------------------------------
+# @function   update_hive
+# @description Synchronizes command intelligence across all security tiers.
+#              - Updates RUN_NEVER or allowlist.txt for exact matching.
+#              - Updates dataset.csv with label/weight for heuristic training.
+#              - Purges stale .pkl models to force re-learning.
+#
+# @param      $1  Command string
+# @param      $2  Label (0 for Safe, 1 for Malicious)
+# @param      $3  Weight (Importance/Frequency 1-100)
+#-------------------------------------------------------------------------------
+update_hive() {
+    local cmd=$1
+    local label=$2
+    local weight=$3
+
+    export BEE_CMD_TO_SAVE="$cmd"   
+    $PYTHON_BIN <<EOF
+import pandas as pd
+import os
+import sys
+
+file = '$JOB_DIR/cache/dataset.csv'
+cmd_text = os.getenv('BEE_CMD_TO_SAVE', '')
+# Use strings for label/weight initially to catch empty inputs
+raw_label = "$label"
+raw_weight = "$weight"
+
+# --- 1. VALIDATION GATE ---
+# Reject if command is empty or if label/weight are not valid numbers
+try:
+    if not cmd_text.strip():
+        raise ValueError("Empty command")
+    
+    label_val = float(raw_label)
+    weight_val = float(raw_weight)
+    
+    # Optional: Reject "example.com" hallucinations
+    if "example.com" in cmd_text.lower():
+        print("Discarding hallucinated placeholder URL.")
+        sys.exit(0)
+
+except (ValueError, TypeError):
+    print(f"Skipping invalid hive update: CMD='{cmd_text}', L='{raw_label}', W='{raw_weight}'")
+    sys.exit(0)
+
+# --- 2. DATA PROCESSING ---
+df = pd.read_csv(file) if os.path.exists(file) else pd.DataFrame(columns=['command','label','weight'])
+
+# Ensure we don't have NaNs in existing data while we are at it
+df = df.dropna(subset=['command', 'label'])
+
+# Remove old entry to keep it lean
+df = df[df['command'] != cmd_text]
+
+# Add the new entry
+new_row = pd.DataFrame({'command': [cmd_text], 'label': [label_val], 'weight': [weight_val]})
+df = pd.concat([df, new_row], ignore_index=True)
+
+df.to_csv(file, index=False)
+EOF
+
+    unset BEE_CMD_TO_SAVE
+    HIVE_CHANGED="true"
+    beelog "${CYAN}» Bee Retrained (Validated)${NC}"
+}
+
 
 #-------------------------------------------------------------------------------
 # @function   rotate_journal
@@ -1102,15 +1197,15 @@ cleanup_workspace(){
     clear_workspace_file "$JOB_DIR/TASKSCOMPLETED"
     clear_workspace_file "$JOB_DIR/CYCLE"
     
-    rm -f $JOB_DIR/PENDINGREQUEST
-    rm -f $JOB_DIR/PENDINGUSERRESPONSE
-    rm -f $JOB_DIR/RUNNINGCOMMAND
-    rm -f $JOB_DIR/MONITORCOMMAND
-    rm -f $JOB_DIR/PLAN
-    rm -f $JOB_DIR/bee-stats.json
-    rm -rf $JOB_DIR/archive/*
-    rm -rf $JOB_DIR/memory/*
-    rm -rf $JOB_DIR/tmp/*
+    rm -f "$JOB_DIR/PENDINGREQUEST"
+    rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
+    rm -f "$JOB_DIR/RUNNINGCOMMAND"
+    rm -f "$JOB_DIR/MONITORCOMMAND"
+    rm -f "$JOB_DIR/PLAN"
+    rm -f "$JOB_DIR/bee-stats.json"
+    rm -rf "$JOB_DIR/archive/"*
+    rm -rf "$JOB_DIR/memory/"*
+    rm -rf "$JOB_DIR/tmp/"*
     rotate_journal
     > "$JOB_DIR/JOURNAL"
     beelog "${CYAN}» Bee Logs purged ${NC}"
@@ -1118,10 +1213,10 @@ cleanup_workspace(){
 }
 
 # Command got interupted or crashed the script
-if [[ ! -f "$JOB_DIR/RUNNINGCOMMAND" ]]; then
+if [[ -f "$JOB_DIR/RUNNINGCOMMAND" ]]; then
     textdebug 0 "Recover from interupted command..."
-    RUNNING_COMMAND=(cat $JOB_DIR/RUNNINGCOMMAND)
-    rm -f $JOB_DIR/RUNNINGCOMMAND
+    RUNNING_COMMAND=$(cat "$JOB_DIR/RUNNINGCOMMAND")
+    rm -f "$JOB_DIR/RUNNINGCOMMAND"
 fi
 
 
@@ -1131,8 +1226,8 @@ textdebug 0 "Process parameters..."
 if [[ "$DO_FORGET" == "true" ]]; then
     if [[ -n "$FORGET_CMD" && "$FORGET_CMD" != -* ]]; then
         $BASE_DIR/tools/forget.sh "$JOB_NAME:$PACKAGE_VERSION" "$FORGET_CMD" 
-        beelog "${CYAN}» Bee Forgot '$2'${NC}"
-        textline 0 "${WHITE}Bee forgot '$2' ${CYAN}($(get_eyes "chill"))${NC}"
+        beelog "${CYAN}» Bee Forgot '$FORGET_CMD'${NC}"
+        textline 0 "${WHITE}Bee forgot '$FORGET_CMD' ${CYAN}($(get_eyes "chill"))${NC}"
     else
         end_program 1 "Error: --forget= requires a command string."
     fi
@@ -1194,6 +1289,11 @@ if [[ "$DO_CLEARRULES" == "true" ]]; then
     else
         end_program 1 "${WHITE}Cannot comply. Lost the job config dir. ${CYAN}($(get_eyes "angry"))${NC}"
     fi
+fi
+
+if [[ "$DO_REBUILD" == "true" ]]; then
+    update_hive "rebuild" 0 0 
+    remove_hive_model;
 fi
 
 if [[ "$DO_CLONE" == "true" ]]; then
@@ -1441,7 +1541,7 @@ import_dataset() {
                 fi
                 
                 # Install Job ruleset
-                if [[ "$IMPORT_TYPE == "all" ]] || [[ "$IMPORT_TYPE == "job" ]] || [[ "$IMPORT_TYPE == "jobrules" ]]; then
+                if [[ "$IMPORT_TYPE" == "all" ]] || [[ "$IMPORT_TYPE" == "job" ]] || [[ "$IMPORT_TYPE" == "jobrules" ]]; then
                     cp -f "$IMPORT_DIR/$PACKAGE_VERSION/jobrules/"RUN_* "$JOB_DIR/config/"
                     # Copy dataset even if it already exists in cache
                     [[ -f "$IMPORT_DIR/$PACKAGE_VERSION/jobrules/dataset.csv" ]] && cp -f "$IMPORT_DIR/$PACKAGE_VERSION/jobrules/dataset.csv" "$JOB_DIR/cache/"
@@ -1449,14 +1549,16 @@ import_dataset() {
 
                 
                 # Install job Bee profiles to the global/default config
-                if [[ "$IMPORT_TYPE == "all" ]] || [[ "$IMPORT_TYPE == "global" ]] || [[ "$IMPORT_TYPE == "globalrules" ]]; then
+                if [[ "$IMPORT_TYPE" == "all" ]] || [[ "$IMPORT_TYPE" == "global" ]]; then
                     textdebug 0 "Installing Global rules"
                     textline 0 "$ICON_DOWNLOAD Applying global ruleset..."
                     
                     if [[ -f "$IMPORT_DIR/$PACKAGE_VERSION/jobrules/BEE_PROFILE" ]]; then
                         cp -f "$IMPORT_DIR/$PACKAGE_VERSION/jobrules/"BEE_* "$USER_CONFIG_DIR/"
                     fi
-                    
+                fi
+                # Install global run rules
+                if [[ "$IMPORT_TYPE" == "all" ]] || [[ "$IMPORT_TYPE" == "global" ]] || [[ "$IMPORT_TYPE" == "globalrules" ]]; then
                     # Install global rulesets to central config
                     cp -f "$IMPORT_DIR/$PACKAGE_VERSION/globalrules/"RUN_* "$USER_CONFIG_DIR/"
                     [[ -f "$IMPORT_DIR/$PACKAGE_VERSION/globalrules/default-dataset.csv" ]] && cp -f "$IMPORT_DIR/$PACKAGE_VERSION/globalrules/default-dataset.csv" "$USER_CONFIG_DIR/"
@@ -1510,7 +1612,7 @@ textdebug 3 "ENVIRONMENT:\n$ENV\nMODEL=$LLM_MODEL"
 if [[ "$DO_EXIT" == "true" ]]; then
     textline 0 "${WHITE}Bee's maintenance completed. ${CYAN}($(get_eyes "chill"))${NC}"
     if [[ -d $JOB_DIR ]]; then
-        echo "maintenance done" > $JOB_DIR/JOBCOMPLETED
+        echo "maintenance done" > "$JOB_DIR/JOBCOMPLETED"
     fi
     exit 0
 fi
@@ -1530,12 +1632,12 @@ fi
 textdebug 0 "Prepare JOB..."
 
 # Flag job as running
-rm -f $JOB_DIR/JOBCOMPLETED
+rm -f "$JOB_DIR/JOBCOMPLETED"
 
 # Cleanup asyn request+response
-rm -f $JOB_DIR/PENDINGREQUEST
-rm -f $JOB_DIR/PENDINGUSERRESPONSE
-rm -f $JOB_DIR/MONITORCOMMAND
+rm -f "$JOB_DIR/PENDINGREQUEST"
+rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
+rm -f "$JOB_DIR/MONITORCOMMAND"
 
 prepare_job_workspace
 
@@ -1696,7 +1798,7 @@ remote_googleai(){
 
         # CASE: Hard Quota
         if [[ "$RESPONSE" == *"GenerateRequestsPerDayPerProjectPerModel"* ]]; then
-            end-program "${WHITE}Daily project quota exhausted. Loop terminated.${NC}"
+            end_program 1 "${WHITE}Daily project quota exhausted. Loop terminated.${NC}"
         fi
         
         # CASE: Rate Limit
@@ -1821,7 +1923,59 @@ get_token_count() {
     fi
 }
 
+#-------------------------------------------------------------------------------
+# Trims a string down to a maximum estimated token size (from the start/left)
+# Arguments: 1 = Text to trim, 2 = Maximum allowed tokens
+#-------------------------------------------------------------------------------
+trim_to_max_tokens() {
+    local text="$1"
+    local max_tokens="$2"
 
+    # If text is empty or max tokens isn't a positive number, return as-is or empty
+    if [[ -z "$text" || -z "$max_tokens" || "$max_tokens" -le 0 ]]; then
+        echo -n "$text"
+        return
+    fi
+
+    # Calculate max allowed characters based on your 4-char per token heuristic
+    local max_chars=$(( max_tokens * 4 ))
+    local total_chars=${#text}
+
+    # If the text is already under the budget, output it directly
+    if (( total_chars <= max_chars )); then
+        echo -n "$text"
+    else
+        # Extract exactly the first X characters (pure Bash, left-to-right)
+        echo -n "${text:0:$max_chars}"
+    fi
+}
+
+load_model() {
+    # Call model
+    if [ $LLM_MODEL == "local" ]; then
+        if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
+            source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
+            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && (( SELECTED_MODEL_MAX_CHARACTERS > 0 )); then
+                APPLIED_MODEL_MAX_CHARACTERS="$SELECTED_MODEL_MAX_CHARACTERS"
+            fi
+            export GEMINI_API_KEY="$GEMINI_API_KEY"
+            export MODEL_BASE_URL="$SELECTED_MODEL_BASE_URL"
+            export SELECTED_CONTEXT_SIZE="$SELECTED_CONTEXT_SIZE"
+            export MAX_TIMEOUT="$MAX_TIMEOUT"
+
+        fi
+    else
+       if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
+            source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
+            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && (( SELECTED_MODEL_MAX_CHARACTERS > 0 )); then
+                APPLIED_MODEL_MAX_CHARACTERS="$SELECTED_MODEL_MAX_CHARACTERS"
+            fi
+            export SELECTED_MODEL_NAME="$SELECTED_MODEL_NAME"
+            export GEMINI_API_KEY="$GEMINI_API_KEY"
+            export MAX_TIMEOUT="$MAX_TIMEOUT"
+        fi
+    fi
+}
 #-------------------------------------------------------------------------------
 # @function   analyze_prompt
 # @description Orchestrates multi-layered analysis for ambiguous commands.
@@ -1836,6 +1990,12 @@ get_token_count() {
 analyze_prompt() {
     
     TOKENS=$(get_token_count "$PROMPT")
+    LENGTH=${#PROMPT}
+
+    if [[ "$DO_ASKONCE" == "false" ]]; then
+        textline 0 ""
+        textbox 0 "${CYAN}» Polling the hive @ $SELECTED_MODEL_NAME [ctx $TOKENS / $LENGTH chars]${NC} " "thinking"
+    fi
 
     CONTENT=""
     COMMAND=""
@@ -1844,46 +2004,29 @@ analyze_prompt() {
     TASK_COMPLETED=""
     GOAL_COMPLETED="" 
     
-    # Call model
-    echo -e "\n\n$PROMPT" >> $JOB_DIR/LOG
+    # Log the prompt
+    echo -e "\n\n$PROMPT" >> "$JOB_DIR/LOG"
+
+    # Call the LLM model
     if [ $LLM_MODEL == "local" ]; then
         if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
-            source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
-            export GEMINI_API_KEY="$GEMINI_API_KEY"
-            export MODEL_BASE_URL="$SELECTED_MODEL_BASE_URL"
-            export SELECTED_CONTEXT_SIZE="$SELECTED_CONTEXT_SIZE"
-            export MAX_TIMEOUT="$MAX_TIMEOUT"
-            if [[ "$DO_ASKONCE" == "false" ]]; then
-                textline 0 ""
-                textbox 0 "${CYAN}» Polling the hive @ $SELECTED_MODEL_NAME [ctx $TOKENS]${NC} " "thinking"
-            fi
             local_ollama
         fi
-    else
-       if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
-            source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
-            export SELECTED_MODEL_NAME="$SELECTED_MODEL_NAME"
-            export GEMINI_API_KEY="$GEMINI_API_KEY"
-            export MAX_TIMEOUT="$MAX_TIMEOUT"
-            if [[ "$DO_ASKONCE" == "false" ]]; then
-                textline 0 ""
-                textbox 0 "${CYAN}» Polling the hive @ $SELECTED_MODEL_NAME [ctx $TOKENS]${NC} " "thinking"
-            fi
-            remote_googleai
-        fi
+    elif [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
+        remote_googleai
     fi
-    echo -e "\n\n$RESPONSE" >> $JOB_DIR/LOG
+    echo -e "\n\n$RESPONSE" >> "$JOB_DIR/LOG"
 
     if [ -n "$NEW_FACT" ]; then
         textline 2 "${CYAN}» Storing new fact : $NEW_FACT${NC}"
-        echo $NEW_FACT >> $JOB_DIR/FACTS
+        echo $NEW_FACT >> "$JOB_DIR/FACTS"
         sort -u -o "$JOB_DIR/FACTS" "$JOB_DIR/FACTS"
-        echo "NEW FACT: $NEW_FACT" >> $JOB_DIR/JOURNAL
+        echo "NEW FACT: $NEW_FACT" >> "$JOB_DIR/JOURNAL"
     fi
 
     if [ -n "$TASK_COMPLETED" ]; then
         textline 2 "${CYAN}» Completed task : $TASK_COMPLETED${NC}"
-        echo "$TASK_COMPLETED" >> $JOB_DIR/TASKSCOMPLETED
+        echo "$TASK_COMPLETED" >> "$JOB_DIR/TASKSCOMPLETED"
     fi
 
     if [[ "$DO_ASKONCE" == "false" ]] && [[ "$DO_SILENT" == "false" ]]; then
@@ -1901,77 +2044,10 @@ analyze_prompt() {
     fi
 
     #echo -e "\n${CYAN}» STATS:${NC} Processed in ${WHITE}${SECONDS}s${NC}"
-    textline 2 "» STATS: Processed in ${SECONDS}s" >> $JOB_DIR/JOURNAL
+    textline 2 "» STATS: Processed in ${SECONDS}s" >> "$JOB_DIR/JOURNAL"
 }
 
 
-
-#-------------------------------------------------------------------------------
-# @function   update_hive
-# @description Synchronizes command intelligence across all security tiers.
-#              - Updates RUN_NEVER or allowlist.txt for exact matching.
-#              - Updates dataset.csv with label/weight for heuristic training.
-#              - Purges stale .pkl models to force re-learning.
-#
-# @param      $1  Command string
-# @param      $2  Label (0 for Safe, 1 for Malicious)
-# @param      $3  Weight (Importance/Frequency 1-100)
-#-------------------------------------------------------------------------------
-update_hive() {
-    local cmd=$1
-    local label=$2
-    local weight=$3
-
-    export BEE_CMD_TO_SAVE="$cmd"   
-    $PYTHON_BIN <<EOF
-import pandas as pd
-import os
-import sys
-
-file = '$JOB_DIR/cache/dataset.csv'
-cmd_text = os.getenv('BEE_CMD_TO_SAVE', '')
-# Use strings for label/weight initially to catch empty inputs
-raw_label = "$label"
-raw_weight = "$weight"
-
-# --- 1. VALIDATION GATE ---
-# Reject if command is empty or if label/weight are not valid numbers
-try:
-    if not cmd_text.strip():
-        raise ValueError("Empty command")
-    
-    label_val = float(raw_label)
-    weight_val = float(raw_weight)
-    
-    # Optional: Reject "example.com" hallucinations
-    if "example.com" in cmd_text.lower():
-        print("Discarding hallucinated placeholder URL.")
-        sys.exit(0)
-
-except (ValueError, TypeError):
-    print(f"Skipping invalid hive update: CMD='{cmd_text}', L='{raw_label}', W='{raw_weight}'")
-    sys.exit(0)
-
-# --- 2. DATA PROCESSING ---
-df = pd.read_csv(file) if os.path.exists(file) else pd.DataFrame(columns=['command','label','weight'])
-
-# Ensure we don't have NaNs in existing data while we are at it
-df = df.dropna(subset=['command', 'label'])
-
-# Remove old entry to keep it lean
-df = df[df['command'] != cmd_text]
-
-# Add the new entry
-new_row = pd.DataFrame({'command': [cmd_text], 'label': [label_val], 'weight': [weight_val]})
-df = pd.concat([df, new_row], ignore_index=True)
-
-df.to_csv(file, index=False)
-EOF
-
-    unset BEE_CMD_TO_SAVE
-    HIVE_CHANGED="true"
-    beelog "${CYAN}» Bee Retrained (Validated)${NC}"
-}
 
 
 #-------------------------------------------------------------------------------
@@ -2221,7 +2297,7 @@ securitycheck() {
     fi
 
     textdebug 0 "DETECTOR: $PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$VERBOSE_LEVEL\""
-    echo "$PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$VERBOSE_LEVEL\"" >> $JOB_DIR/JOURNAL
+    echo "$PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$VERBOSE_LEVEL\"" >> "$JOB_DIR/JOURNAL"
 
     set +e
     $PYTHON_BIN $BASE_DIR/detector.py "$JOB_DIR" "$COMMAND" "$VERBOSE_LEVEL"
@@ -2266,7 +2342,7 @@ securitycheck() {
         if [ -n "$DISALLOWED_COMMAND" ]; then
             textline 1 "${RED}$ICON_FAIL SCIKIT SECURITY ALERT:${NC} ${WHITE}Execution flagged by SciKit security check!${NC} ${ORANGE}($(get_eyes "angry"))${NC}"
             if [ "$DISALLOWED_BY" == "ForbiddenList" ]; then
-                textline 1 "${RED}$ICON_FAIL${NC} ${WHITE}The AI tried to run a command with a forbidden string: $word${NC} ${RED}($(get_eyes "dead"))${NC}"
+                textline 1 "${RED}$ICON_FAIL${NC} ${WHITE}The AI tried to run a command with a forbidden string: $DISALLOWED_COMMAND${NC} ${RED}($(get_eyes "dead"))${NC}"
             else
                 textline 1 "${RED}$ICON_FAIL${NC} ${WHITE}The AI tried to run the high risk command: $COMMAND${NC} ${RED}($(get_eyes "dead"))${NC}"
             fi
@@ -2321,6 +2397,194 @@ is_lan_address() {
     fi
 }
 
+# Build prompt. Prioritize maximum command result data (in RESULT)
+build_prompt() {
+
+    # Parameter validation
+    if [[ -z "$SELECTED_CONTEXT_SIZE" ]] || (( SELECTED_CONTEXT_SIZE < 1 )); then
+        end_program 1 "Prompt builder is missing SELECTED_CONTEXT_SIZE. Check the model '$MODEL' configuration."
+    fi
+
+    # 1. Handle Context Addition
+    DO_ADD_LAST_CONTEXT="false"
+    if [[ "$DO_ADD_LAST_CONTEXT" == "false" ]]; then
+        LAST_CONTEXT=""
+    else
+        LAST_CONTEXT="### LAST CONTEXT
+#$CONTEXT"
+    fi
+
+    # 2. Build Initial Full Prompt Layout
+    PROMPT="### SYSTEM INSTRUCTIONS
+$PROFILE
+$RULES
+$ADDITIONAL
+
+### ENVIRONMENT
+$ENV
+
+### Initial GOAL and PLAN
+$GOAL
+$PLAN
+
+### TASKS COMPLETED SO FAR
+$TASKS_COMPLETED
+
+### TASK / FOLLOWUP
+$INPUT$NOTES
+
+### COMMANDS EXECUTED SO FAR
+$COMMANDLOG
+
+### FOUND FACTS
+$FACTS
+
+### LAST COMMAND
+$COMMAND
+
+### RESULT OF LAST COMMAND
+$RESULT
+
+### WORK HISTORY SO FAR
+$HISTORY
+
+$LAST_CONTEXT"
+
+    # Calculate token size of the raw full prompt
+    token_count_prompt=$(get_token_count "$PROMPT")
+    SHORTEN="false"
+
+    # Evaluate whether a trim sequence is necessary
+    if [[ "$DO_CAP_RESPONSE" == "true" ]] && (( token_count_prompt > DO_MAX_CAP_RESPONSE )); then
+        SHORTEN="true"
+    fi
+    if (( token_count_prompt > SELECTED_CONTEXT_SIZE )); then
+        SHORTEN="true"
+    fi
+
+    char_count_prompt=${#PROMPT} 
+    if (( char_count_prompt > APPLIED_MODEL_MAX_CHARACTERS )); then
+        SHORTEN="true"
+    fi
+
+    # STEP 1: Drop history modules and strip prompt payload down to core elements
+    SHORTEN_TO_TOKENS=""
+    if [[ "$SHORTEN" == "true" ]]; then
+        textline 1 "${CYAN}» Prompt is too large ($token_count_prompt tokens). Minimizing structure.${NC}\n"
+        
+        PROMPT="### SYSTEM INSTRUCTIONS
+$PROFILE
+$RULES
+$ADDITIONAL
+
+### ENVIRONMENT
+$ENV
+
+### Initial GOAL and PLAN
+$GOAL
+$PLAN
+
+### TASK / FOLLOWUP
+$INPUT$NOTES
+
+### COMMANDS EXECUTED SO FAR
+$COMMANDLOG
+
+### LAST COMMAND
+$COMMAND
+
+### RESULT OF LAST COMMAND
+$RESULT"
+
+        # Re-verify token ceiling using the slim layout
+        token_count_prompt=$(get_token_count "$PROMPT")
+
+        # Mock up prompt framework to calculate exact text allocation headspace
+        TMP_PROMPT="### SYSTEM INSTRUCTIONS$PROFILE$RULES$ADDITIONAL### ENVIRONMENT$ENV### Initial GOAL and PLAN$GOAL$PLAN### TASK / FOLLOWUP$INPUT$NOTES### COMMANDS EXECUTED SO FAR$COMMANDLOG### LAST COMMAND$COMMAND### RESULT OF LAST COMMAND"
+        token_count_tmp_prompt=$(get_token_count "$TMP_PROMPT")
+        
+        if [[ "$DO_CAP_RESPONSE" == "true" ]] && (( token_count_prompt > DO_MAX_CAP_RESPONSE )); then
+            SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - token_count_tmp_prompt - 100 ))
+        fi
+        if (( token_count_prompt > SELECTED_CONTEXT_SIZE )); then
+            if [[ -z "$SHORTEN_TO_TOKENS" ]] || (( SHORTEN_TO_TOKENS > SELECTED_CONTEXT_SIZE )); then
+                SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - token_count_tmp_prompt - 100 ))
+            fi
+        fi
+
+        # STEP 2: If headroom is still negative, aggressively isolate and slice the $RESULT payload
+        if [[ -n "$SHORTEN_TO_TOKENS" ]] && (( SHORTEN_TO_TOKENS > 0 )); then
+            textline 1 "${CYAN}» Prompt remains over capacity. Trimming command result logs.${NC}\n"
+            TMP_RESULTS=$(trim_to_max_tokens "$RESULT" "$SHORTEN_TO_TOKENS")
+            RESULT="$TMP_RESULTS
+[Result was too long and has been trimmed]"
+            TMP_RESULTS=""
+
+            PROMPT="### SYSTEM INSTRUCTIONS
+$PROFILE
+$RULES
+$ADDITIONAL
+
+### ENVIRONMENT
+$ENV
+
+### Initial GOAL and PLAN
+$GOAL
+$PLAN
+
+### TASK / FOLLOWUP
+$INPUT$NOTES
+
+### COMMANDS EXECUTED SO FAR
+$COMMANDLOG
+
+### LAST COMMAND
+$COMMAND
+
+### RESULT OF LAST COMMAND
+$RESULT"
+        fi
+    fi
+
+    # STEP 3: Hard Stop Token Safety Cap
+    token_count_prompt=$(get_token_count "$PROMPT")
+    SHORTEN_TO_TOKENS=""
+
+    if [[ "$DO_CAP_RESPONSE" == "true" ]] && (( token_count_prompt > DO_MAX_CAP_RESPONSE )); then
+        SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - 100 ))
+    fi
+    if (( token_count_prompt > SELECTED_CONTEXT_SIZE )); then
+        if [[ -z "$SHORTEN_TO_TOKENS" ]] || (( SHORTEN_TO_TOKENS > SELECTED_CONTEXT_SIZE )); then
+            SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - 100 ))
+        fi
+    fi
+
+    if [[ -n "$SHORTEN_TO_TOKENS" ]] && (( SHORTEN_TO_TOKENS > 0 )); then
+        textline 1 "${CYAN}» Prompt forced macro trim state ($token_count_prompt tokens). Finalizing.${NC}\n"
+        TMP_PROMPT=$(trim_to_max_tokens "$PROMPT" "$SHORTEN_TO_TOKENS")
+        PROMPT="$TMP_PROMPT
+[Prompt was too long and has been trimmed]"
+        TMP_PROMPT=""
+    fi
+
+    # STEP 4: Hard Stop Character Truncation (Economy setting)
+    char_count_prompt=${#PROMPT} 
+    if (( char_count_prompt > APPLIED_MODEL_MAX_CHARACTERS )); then
+        # Dynamically set safety padding offset margin
+        LOCAL_TRIGGER=$(( APPLIED_MODEL_MAX_CHARACTERS - 1000 ))
+        if (( LOCAL_TRIGGER > 0 )); then
+            textline 1 "${CYAN}» Final economy limit tripped (${char_count_prompt} chars). Truncating prompt raw string.${NC}\n"
+            TMP_PROMPT="${PROMPT:0:$LOCAL_TRIGGER}"
+            PROMPT="$TMP_PROMPT
+[Prompt string limit exceeded and hard truncated]"
+            TMP_PROMPT=""
+        fi
+    fi
+
+    char_count_result=${#RESULT} 
+    textdebug 2 "RESULT size on build exit : $char_count_result"
+}
+
 
 # Start with existing or new custom prompt or followup input
 
@@ -2332,14 +2596,14 @@ DO_ASK="false"
 if [[ "$DO_ASKONCE" == "false" ]] && [[ "$PARAM_PROMPT" == *"?"* ]]; then
     DO_ASK="true"
     textdebug 2 "Starting Ask mode."
-    INPUT="Answer this question by executing bash commands. Answer in the json EXPLANATION field. Mark GOAL_COMPLETED as "true" in the json field once the question is answered. $PARAM_PROMPT"
+    INPUT="Answer this question by executing bash commands. Answer in the json EXPLANATION field. Mark GOAL_COMPLETED as true in the json field once the question is answered. $PARAM_PROMPT"
 else
     INPUT="$PARAM_PROMPT"
 fi
 GOAL="$INPUT"
 
 if [[ -f "$JOB_DIR/config/DEFAULT_INPUT" ]]; then
-    DEFAULT_INPUT=$(cat $JOB_DIR/config/DEFAULT_INPUT)
+    DEFAULT_INPUT=$(cat "$JOB_DIR/config/DEFAULT_INPUT")
 else
     end_program 1 "Missing default input in $JOB_DIR/config/DEFAULT_INPUT ${RED}($(get_eyes "angry"))${NC}"
 fi
@@ -2365,20 +2629,20 @@ elif [[ "$IS_NEW_JOB" == "true" ]]; then
         GOAL=$INPUT
 
     else
-        textbox 0 "${CYAN}» Departing hive for new custom flight '$JOB_NAME'${NC}" "$INPUT" "fly"]
+        textbox 0 "${CYAN}» Departing hive for new custom flight '$JOB_NAME'${NC}" "$INPUT" "fly"
     fi
     cleanup_workspace
-    echo $GOAL > $JOB_DIR/GOAL
+    echo $GOAL > "$JOB_DIR/GOAL"
     echo -e "$INPUT\n"
     IS_NEW_JOB=false # Continue as 'running' in next loop
     
 else
     # Continue job
     if [[ -f "$JOB_DIR/GOAL" ]]; then
-        GOAL=$(cat $JOB_DIR/GOAL)
+        GOAL=$(cat "$JOB_DIR/GOAL")
     else
         GOAL=$DEFAULT_INPUT
-        echo $GOAL > $JOB_DIR/GOAL
+        echo $GOAL > "$JOB_DIR/GOAL"
     fi
     if   [[ "$INPUT" == "" ]]; then
         textbox 0 "${CYAN}» Resuming last flight '$JOB_NAME:$PACKAGE_VERSION' ${NC}" "fly"
@@ -2401,6 +2665,7 @@ fi
 
 
 
+
 ############################################################
 # MAIN LOOP
 ############################################################
@@ -2416,6 +2681,9 @@ RESULT=""
 # Prepare as current default job
 if [[ -n "$JOB_SESSION_FILE" ]]; then   
     echo "$JOB_NAME:$PACKAGE_VERSION" > "$JOB_SESSION_FILE"
+    if [[ "$USER" == "root" ]]; then
+        chown -R $REAL_USER:$REAL_GROUP "$JOB_SESSION_FILE"
+    fi
 fi
 
 while [[ "$JOB_COMPLETED" == "false" ]]; do
@@ -2426,7 +2694,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
     
     # Check runtime monitor Quit command
     if [[ -f "$JOB_DIR/MONITORCOMMAND" ]]; then
-        MONITORREPLY=$(cat $JOB_DIR/MONITORCOMMAND)
+        MONITORREPLY=$(cat "$JOB_DIR/MONITORCOMMAND")
         if [[ "$MONITORREPLY" == "HALT" ]]; then
             end_program 0 "Halting Bee by Monitor command"
         fi
@@ -2439,7 +2707,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
         textbox 0 "${CYAN}» Manual follow-up${NC}" "$DISALLOWED_COMMAND" "waiting"
         echo -n "Enter your follow-up instructions: "
         read -r FOLLOW_UP
-        echo "FOLLOWUP $FOLLOW_UP" >> $JOB_DIR/REASONING
+        echo "FOLLOWUP $FOLLOW_UP" >> "$JOB_DIR/REASONING"
     elif [[ "${key_pressed:-}" == "q" ]]; then
         textbox 0 "${CYAN}» Exitting by user request.${NC}" "happy"
         bee_signal "$JOB_NAME" "DONE"
@@ -2449,13 +2717,13 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
     # Get fresh input
     textdebug 0 "Obtain fresh scope"
     if [[ -f "$JOB_DIR/config/BEE_PROFILE" ]]; then
-        PROFILE=$(cat $JOB_DIR/config/BEE_PROFILE)
+        PROFILE=$(cat "$JOB_DIR/config/BEE_PROFILE")
     else
         end_program 1 "${RED} MISSING:${NC} The BEE_PROFILE file is missing." "Add one describing the agent profile in $JOB_DIR/config/BEE_PROFILE." "shock" 
     fi
     
     if [[ -f "$JOB_DIR/config/BEE_RULES" ]]; then
-        RULES=$(cat $JOB_DIR/config/BEE_RULES)
+        RULES=$(cat "$JOB_DIR/config/BEE_RULES")
         # Support dynamic $JOB_DIR replacement in BEE_RULES
         RULES="${RULES//\$JOB_DIR/$JOB_DIR}"
     else
@@ -2500,6 +2768,9 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
         fi
         
         textdebug 2 "INPUT=$PROMPT"
+
+        # Load LLM model with config
+        load_model
 
         analyze_prompt
 
@@ -2549,80 +2820,15 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
             NOTES="\nLast command got interupted: $RUNNING_COMMAND"
             RUNNING_COMMAND=""
         fi
+        
+        load_model
 
-        PROMPT="### SYSTEM INSTRUCTIONS
-$PROFILE
-$RULES
-$ADDITIONAL
+        # Build size (token+char) optimized prompt
+        build_prompt
 
-### ENVIRONMENT
-$ENV
-
-### Initial GOAL and PLAN
-$GOAL
-$PLAN
-
-### TASKS COMPLETED SO FAR
-$TASKS_COMPLETED
-
-### TASK / FOLLOWUP
-$INPUT$NOTES
-
-### COMMANDS EXECUTED SO FAR
-$COMMANDLOG
-
-### FOUND FACTS
-$FACTS
-
-### LAST COMMAND
-$COMMAND
-
-### RESULT OF LAST COMMAND
-$RESULT"
-
-# removed context as its pure chronolical causing state differences garbling the vector prediction path
-### LAST CONTEXT
-#$CONTEXT
-
-# ### WORK HISTORY SO FAR
-# $HISTORY"
-
-
-        # Limit context length if needed (larger )
-        length=${#PROMPT}
-        limit=${SELECTED_CONTEXT_SIZE:-4096} # Default to 4096 if CONTEXT_SIZE is missing
-
-        if [[ "$length" -gt "$limit" ]]; then
-            RESULT="(to large to include)"
-        fi
-
-        PROMPT="### SYSTEM INSTRUCTIONS
-$PROFILE
-$RULES
-$ADDITIONAL
-
-### ENVIRONMENT
-$ENV
-
-### Initial GOAL and PLAN
-$GOAL
-$PLAN
-
-### TASK / FOLLOWUP
-$INPUT$NOTES
-
-### COMMANDS EXECUTED SO FAR
-$COMMANDLOG
-
-### LAST COMMAND
-$COMMAND
-
-### RESULT OF LAST COMMAND
-$RESULT"
-
-
-        echo "$PROMPT" >> $JOB_DIR/PROMPTLOG
-        echo "$PROMPT" > $JOB_DIR/LASTPROMPT
+        # Log prompt data
+        echo "$PROMPT" >> "$JOB_DIR/PROMPTLOG"
+        echo "$PROMPT" > "$JOB_DIR/LASTPROMPT"
 
         textdebug 2 "INPUT=$INPUT"
 
@@ -2632,29 +2838,29 @@ $RESULT"
 
         # Check if the goal-completed exists in the response (after last command )
         if [[ "$GOAL_COMPLETED" == "true" ]]; then
-            textbox 
+            textline ""
             textbox 0 "${CYAN}» Job complete. 100% nectar collected. Hive-bound.${NC}" "happy"
 
-            echo "JOB COMPLETED" >> $JOB_DIR/HISTORY
-            echo "REASON: $EXPLANATION" >> $JOB_DIR/HISTORY
-            echo " " >> $JOB_DIR/HISTORY
+            echo "JOB COMPLETED" >> "$JOB_DIR/HISTORY"
+            echo "REASON: $EXPLANATION" >> "$JOB_DIR/HISTORY"
+            echo " " >> "$JOB_DIR/HISTORY"
 
-            echo "INPUT: $INPUT" >> $JOB_DIR/JOURNAL
-            echo "PROMPT: $PROMPT" >> $JOB_DIR/JOURNAL
-            echo "RESPONSE: $RESPONSE" >> $JOB_DIR/JOURNAL
-            echo "EXPLANATION: $EXPLANATION" >> $JOB_DIR/JOURNAL
-            echo "JOB COMPLETED" >> $JOB_DIR/JOURNAL
-            echo " " >> $JOB_DIR/JOURNAL
+            echo "INPUT: $INPUT" >> "$JOB_DIR/JOURNAL"
+            echo "PROMPT: $PROMPT" >> "$JOB_DIR/JOURNAL"
+            echo "RESPONSE: $RESPONSE" >> "$JOB_DIR/JOURNAL"
+            echo "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/JOURNAL"
+            echo "JOB COMPLETED" >> "$JOB_DIR/JOURNAL"
+            echo " " >> "$JOB_DIR/JOURNAL"
 
-            echo -e "\nGOAL: $GOAL" > $JOB_DIR/FOCUS
-            echo -e "EXPLANATION: $EXPLANATION" >> $JOB_DIR/FOCUS
-            echo -e "GOAL COMPLETED: true" >> $JOB_DIR/FOCUS
+            echo -e "\nGOAL: $GOAL" > "$JOB_DIR/FOCUS"
+            echo -e "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/FOCUS"
+            echo -e "GOAL COMPLETED: true" >> "$JOB_DIR/FOCUS"
 
-            echo "$EXPLANATION" > $JOB_DIR/EXPLANATION
+            echo "$EXPLANATION" > "$JOB_DIR/EXPLANATION"
             
             JOB_COMPLETED="true"
             bee_signal "$JOB_NAME" "DONE"
-            echo "done" > $JOB_DIR/JOBCOMPLETED
+            echo "done" > "$JOB_DIR/JOBCOMPLETED"
             
             end_program
         
@@ -2670,20 +2876,21 @@ $RESULT"
 
             AUTO_FIX_ENABLED="false"
             
-            securitycheck
-
-            if [ -z "$COMMAND" ] && [[ "$DISALLOWED_BY" != "" ]]; then
-                texterror "${RED}» Command rejected${NC}" "$LAST_COMMAND" "dead"
-                AUTO_FIX_ENABLED="false"
-                COMMAND=""
-            fi
-
             if [[ "$COMMAND" != "" ]]; then
-                echo "NEXT COMMAND: $COMMAND" > $JOB_DIR/NEXTACTION
-                echo "EXPLANATION: $EXPLANATION" >> $JOB_DIR/NEXTACTION
+            
+                securitycheck
 
-                echo -e "\nCOMMAND: $COMMAND" >> $JOB_DIR/REASONING
-                echo "EXPLANATION: $EXPLANATION" >> $JOB_DIR/REASONING
+                if [ -z "$COMMAND" ] && [[ -n "$DISALLOWED_BY" ]]; then
+                    texterror "${RED}» Command rejected${NC}" "$LAST_COMMAND" "dead"
+                    AUTO_FIX_ENABLED="false"
+                    COMMAND=""
+                fi
+            
+                echo "NEXT COMMAND: $COMMAND" > "$JOB_DIR/NEXTACTION"
+                echo "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/NEXTACTION"
+
+                echo -e "\nCOMMAND: $COMMAND" >> "$JOB_DIR/REASONING"
+                echo "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/REASONING"
 
                 # Allow execution check but skip allowed autofix commands
                 FOLLOW_UP=""
@@ -2692,25 +2899,25 @@ $RESULT"
                     DISALLOWED_COMMAND=""
                     DISALLOWED_BY=""
                     #update_hive "$COMMAND" 0 1
-                    rm -f $JOB_DIR/PENDINGREQUEST
-                    rm -f $JOB_DIR/PENDINGUSERRESPONSE
+                    rm -f "$JOB_DIR/PENDINGREQUEST"
+                    rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
 
-                elif [[ "$DISALLOWED_COMMAND" != "" ]] && [[ "$MODE_AUTOMATIC" == "RESTRICTIVE" ]]; then
+                elif [[ -n "$DISALLOWED_COMMAND" ]] && [[ "$MODE_AUTOMATIC" == "RESTRICTIVE" ]]; then
                     textbox 1 "${CYAN}» Skipping due to rule by $DISALLOWED_BY${NC}" "$DISALLOWED_COMMAND" "whatever" 
-                    echo "SKIPPING by rule of $DISALLOWED_BY" >> $JOB_DIR/REASONING
+                    echo "SKIPPING by rule of $DISALLOWED_BY" >> "$JOB_DIR/REASONING"
                     INPUT="The following commandline was not allowed: $DISALLOWED_COMMAND"
                     COMMAND=""
                     DISALLOWED_BY=""
                     DISALLOWED_COMMAND=""
-                    rm -f $JOB_DIR/PENDINGREQUEST
-                    rm -f $JOB_DIR/PENDINGUSERRESPONSE
+                    rm -f "$JOB_DIR/PENDINGREQUEST"
+                    rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
 
                 else
                     count=101
                     REPLY=""
                     while [[ "$JOB_COMPLETED" == "false" ]]; do
                         
-                        echo "$COMMAND" > $JOB_DIR/PENDINGREQUEST
+                        echo "$COMMAND" > "$JOB_DIR/PENDINGREQUEST"
                         textline 0 ""                    
                         textbox 0 "${STYLE_QUEST}  EXECUTE ? ${NC} [Yes/Once/Skip/Always/Never/Replace/Followup/Quit]:" "> $COMMAND" "waiting" 
                         
@@ -2724,13 +2931,13 @@ $RESULT"
 
                             # Check for the response file from monitor.sh
                             if [[ -f "$JOB_DIR/PENDINGUSERRESPONSE" ]]; then
-                                REPLY=$(cat $JOB_DIR/PENDINGUSERRESPONSE)
+                                REPLY=$(cat "$JOB_DIR/PENDINGUSERRESPONSE")
                                 if [[ "$REPLY" == "y" ]] || [[ "$REPLY" == "o" ]]|| [[ "$REPLY" == "s" ]] || [[ "$REPLY" == "a" ]] || [[ "$REPLY" == "n" ]] || [[ "$REPLY" == "q" ]]; then
-                                    rm -f $JOB_DIR/PENDINGREQUEST
-                                    rm -f $JOB_DIR/PENDINGUSERRESPONSE
+                                    rm -f "$JOB_DIR/PENDINGREQUEST"
+                                    rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
                                 else
                                     REPLY=""
-                                    rm -f $JOB_DIR/PENDINGUSERRESPONSE
+                                    rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
                                 fi
                                 break
                             fi
@@ -2759,21 +2966,21 @@ $RESULT"
                             a) # Always (Weight 10)
                                 textbox 0 "${CYAN}» Manually approved for always${NC}" "$DISALLOWED_COMMAND" "rich" 
                                 W=100; L=0; update_hive "$COMMAND" $L $W; 
-                                echo "$COMMAND" >> $JOB_DIR/config/RUN_ALWAYS 
+                                echo "$COMMAND" >> "$JOB_DIR/config/RUN_ALWAYS "
                                 sort -u -o "$JOB_DIR/config/RUN_ALWAYS" "$JOB_DIR/config/RUN_ALWAYS"
                                 break ;;
                             s) # SKIP
                                 textbox 0 "${CYAN}» Manually skipped${NC}" "$DISALLOWED_COMMAND" "annoyed" 
-                                echo "SKIPPED the command" >> $JOB_DIR/REASONING
+                                echo "SKIPPED the command" >> "$JOB_DIR/REASONING"
                                 W=1; L=1; update_hive "$COMMAND" $L $W; 
                                 FOLLOW_UP="Last command '$COMMAND' was skipped. Try an alternative or move on."
                                 COMMAND=""
                                 break ;;
                             n) # NEVER (Weight 10 + Label 1)
                                 textbox 0 "${CYAN}» Manually rejected for always${NC}" "$DISALLOWED_COMMAND" "annoyed" 
-                                echo "REJECTED for always" >> $JOB_DIR/REASONING
+                                echo "REJECTED for always" >> "$JOB_DIR/REASONING"
                                 W=100; L=1; update_hive "$COMMAND" $L $W; 
-                                echo "$COMMAND" >> $JOB_DIR/config/RUN_NEVER
+                                echo "$COMMAND" >> "$JOB_DIR/config/RUN_NEVER"
                                 sort -u -o "$JOB_DIR/config/RUN_NEVER" "$JOB_DIR/config/RUN_NEVER"
                                 FOLLOW_UP="Last command '$COMMAND' was rejected for ever. Do not use this again."
                                 COMMAND=""
@@ -2782,8 +2989,8 @@ $RESULT"
                                 textbox 0 "${CYAN}» Manually replacing${NC}" "$DISALLOWED_COMMAND" "waiting"
                                 echo -n "Enter the replacement command: "
                                 read -r COMMAND_REPLACEMENT
-                                echo "REPLACED by $COMMAND_REPLACEMENT" >> $JOB_DIR/REASONING
-                                echo "\"$COMMAND\":\"$COMMAND_REPLACEMENT\"" >> $JOB_DIR/config/RUN_REPLACE
+                                echo "REPLACED by $COMMAND_REPLACEMENT" >> "$JOB_DIR/REASONING"
+                                echo "\"$COMMAND\":\"$COMMAND_REPLACEMENT\"" >> "$JOB_DIR/config/RUN_REPLACE"
                                 sort -u -o "$JOB_DIR/config/RUN_REPLACE" "$JOB_DIR/config/RUN_REPLACE"
                                 COMMAND="$COMMAND_REPLACEMENT"
                                 break ;;
@@ -2791,7 +2998,7 @@ $RESULT"
                                 textbox 0 "${CYAN}» Manual follow-up${NC}" "$DISALLOWED_COMMAND" "waiting"
                                 echo -n "Enter your follow-up instructions: "
                                 read -r FOLLOW_UP
-                                echo "FOLLOWUP: $FOLLOW_UP" >> $JOB_DIR/REASONING
+                                echo "FOLLOWUP: $FOLLOW_UP" >> "$JOB_DIR/REASONING"
                                 break ;;
 
                             q) # QUIT
@@ -2810,23 +3017,23 @@ $RESULT"
             fi
 
             textdebug 0 "Execute command"
-            rm -f $JOB_DIR/PENDINGREQUEST
-            rm -f $JOB_DIR/PENDINGUSERRESPONSE
+            rm -f "$JOB_DIR/PENDINGREQUEST"
+            rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
 
             # Respond to Monitor Halt comment
             if [[ -f "$JOB_DIR/MONITORCOMMAND" ]]; then
-                MONITORREPLY=$(cat $JOB_DIR/MONITORCOMMAND)
+                MONITORREPLY=$(cat "$JOB_DIR/MONITORCOMMAND")
                 if [[ "$MONITORREPLY" == "HALT" ]]; then
                     end_program 0 "Halting Bee by Monitor command."
                 fi
             fi
-            rm -f $JOB_DIR/MONITORCOMMAND
+            rm -f "$JOB_DIR/MONITORCOMMAND"
             
             if [ -n "$COMMAND" ];then
                 if [ -z "$FOLLOW_UP" ];then
                     textbox 0 "${GOLD}» Executing on target:${NC}" "$COMMAND" "blink"
 
-                    echo "$COMMAND" >> $JOB_DIR/COMMANDLOG
+                    echo "$COMMAND" >> "$JOB_DIR/COMMANDLOG"
 
                     if [[ "$COMMAND" =~ ^cd\ (.*) ]]; then
                         NEW_DIR="${BASH_REMATCH[1]}"
@@ -2844,27 +3051,27 @@ $RESULT"
                             echo $RESULT
                         fi
                     else
-                        echo "$(date +%s) | $COMMAND" > $JOB_DIR/RUNNINGCOMMAND
+                        echo "$(date +%s) | $COMMAND" > "$JOB_DIR/RUNNINGCOMMAND"
 
                         # Send UDP Heartbeat to QueenBee
                         bee_signal "$JOB_NAME" "RUNNING" 
-                        # RESULT=$($SUDO_CMD "$COMMAND" 2>&1)
-set +e
-RESULT=$($SUDO_CMD "$COMMAND" 2>&1)
-EXIT_CODE=$?
-set -e
 
-if [ $EXIT_CODE -ne 0 ]; then
-    textdebug 0 "Execution failed with code $EXIT_CODE"
-    textdebug 0 "RESULT=$RESULT"
-    # Continue running, report to LLM
-    # end_program $EXIT_CODE "Execution failed with code $EXIT_CODE"
-else
-    textdebug 0 "RESULT=$RESULT"
-fi
+                        set +e
+                        RESULT=$($SUDO_CMD "$COMMAND" 2>&1)
+                        EXIT_CODE=$?
+                        set -e
+
+                        if [ $EXIT_CODE -ne 0 ]; then
+                            textdebug 0 "Execution failed with code $EXIT_CODE"
+                            textdebug 0 "RESULT=$RESULT"
+                            # Continue running, report to LLM
+                            # end_program $EXIT_CODE "Execution failed with code $EXIT_CODE"
+                        else
+                            textdebug 0 "RESULT=$RESULT"
+                        fi
 
                         bee_signal "$JOB_NAME" "ACTIVE"
-                        rm -f $JOB_DIR/RUNNINGCOMMAND
+                        rm -f "$JOB_DIR/RUNNINGCOMMAND"
 
                         textline 0 "${CYAN}» Executed on target:\n${NC}> $COMMAND\n"
                         # Spinner attempt
@@ -2872,89 +3079,59 @@ fi
                         #PID=$!
                         #spinner $PID
                         #RESULT=$(cat $WORKSPACE_DIR/RESULT)
-                    fi
-
-                    echo "\$ $COMMAND" >> $JOB_DIR/HISTORY
-                    echo "$RESULT" >> $JOB_DIR/HISTORY
-                    echo " " >> $JOB_DIR/HISTORY
-
-                    echo "INPUT: $INPUT" >> $JOB_DIR/JOURNAL
-                    echo "PROMPT: $PROMPT" >> $JOB_DIR/JOURNAL
-                    echo "RESPONSE: $RESPONSE" >> $JOB_DIR/JOURNAL
-                    echo "NEXT COMMAND: $COMMAND" >> $JOB_DIR/JOURNAL
-                    echo "EXPLANATION: $EXPLANATION" >> $JOB_DIR/JOURNAL
-                    echo "COMMAND RESULT: $RESULT" >> $JOB_DIR/JOURNAL
-                    echo " " >> $JOB_DIR/JOURNAL
-
-                    if [ -z "$RESULT" ]; then
-                        INPUT="There was no output."
-                        textline 0 "${CYAN}» No output found.${NC}"
-                    fi
-
-                    length=${#RESULT} 
-                    if [ "$length" -gt "$FILTER_TRIGGER" ]; then
-                        if [[ "$COMMAND" =~ "logs" ]]; then
-                            textline 1 "${CYAN}» Log result is to long. Filtering.${NC}\n"
-                            echo "$RESULT" > $JOB_DIR/RESULT
-                            echo "This result is shortened by removing all numbers and duplicate lines;" > $JOB_DIR/RESULT2
-                            tr -d '0-9' < $JOB_DIR/RESULT | sort -u >> $JOB_DIR/RESULT2
-                            RESULT=$(cat $JOB_DIR/RESULT2)
-
-                            # 3. Shorten to the first 1000 characters
-                            #PROMPT="${PROMPT:0:1000}"
-                        else
-                            textline 1 "${CYAN}» Result is to long ($length chars). Truncating.${NC}\n"
-                            RESULTTMP=$(echo "$RESULT" | tail -n $HISTORY_DEPTH)
-                            RESULT="$RESULTTMP\nResult was to long and has been truncated."
+                        
+                        if [[ -z "$RESULT" ]]; then
+                            RESULT="There was no output for $COMMAND."
+                            textline 0 "${CYAN}» No output found.${NC}"       
                         fi
                     fi
 
-                    # Limit context size
-                    CLEAN_RESULT=$(echo "$RESULT" | tail -n $HISTORY_DEPTH)
-                    INPUT="The result of '$COMMAND' is '$CLEAN_RESULT'"
+                    echo "\$ $COMMAND" >> "$JOB_DIR/HISTORY"
+                    echo "$RESULT" >> "$JOB_DIR/HISTORY"
+                    echo " " >> "$JOB_DIR/HISTORY"
 
-                    echo -e "\nGOAL: $GOAL" > $JOB_DIR/FOCUS
-                    echo -e "\nPLANNING:\n$PLAN" >> $JOB_DIR/FOCUS 
-                    echo -e "\nINPUT: $INPUT" >> $JOB_DIR/FOCUS
-                    echo -e "\nINPUT: $INPUT" >> $JOB_DIR/FOCUS
-                    echo -e "\nRESULT: $CLEAN_RESULT" >> $JOB_DIR/FOCUS
-                    echo -e "\nNEXT: $COMMAND" >> $JOB_DIR/FOCUS
-                    echo -e "\nEXPLANATION: $EXPLANATION" >> $JOB_DIR/FOCUS
+                    echo "INPUT: $INPUT" >> "$JOB_DIR/JOURNAL"
+                    echo "PROMPT: $PROMPT" >> "$JOB_DIR/JOURNAL"
+                    echo "RESPONSE: $RESPONSE" >> "$JOB_DIR/JOURNAL"
+                    echo "NEXT COMMAND: $COMMAND" >> "$JOB_DIR/JOURNAL"
+                    echo "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/JOURNAL"
+                    echo "COMMAND RESULT: $RESULT" >> "$JOB_DIR/JOURNAL"
+                    echo " " >> "$JOB_DIR/JOURNAL"
 
-                    # Limit response size as desired
-                    if [[ "$DO_CAP_RESPONSE" == "true" ]]; then
-                        TMP_CLEAN_RESULT="${CLEAN_RESULT:0:$DO_MAX_CAP_RESPONSE}"
-                        textline 0 "$TMP_CLEAN_RESULT\n"
-                    else
-                        textline 0 "$CLEAN_RESULT\n"
-                    fi
+                    echo -e "\nGOAL: $GOAL" > "$JOB_DIR/FOCUS"
+                    echo -e "\nPLANNING:\n$PLAN" >> "$JOB_DIR/FOCUS"
+                    echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
+                    echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
+                    echo -e "\nRESULT: $RESULT" >> "$JOB_DIR/FOCUS"
+                    echo -e "\nNEXT: $COMMAND" >> "$JOB_DIR/FOCUS"
+                    echo -e "\nEXPLANATION: $EXPLANATION" >> "$JOB_DIR/FOCUS"
 
                     update_hud_json
                 else
                     # Process FollowUp
-                    echo "\$ $COMMAND" >> $JOB_DIR/HISTORY
-                    echo "COMMAND CANCELED BY USER" >> $JOB_DIR/HISTORY
-                    echo "REASON: $FOLLOW_UP" >> $JOB_DIR/HISTORY
-                    echo " " >> $JOB_DIR/HISTORY
+                    echo "\$ $COMMAND" >> "$JOB_DIR/HISTORY"
+                    echo "COMMAND CANCELED BY USER" >> "$JOB_DIR/HISTORY"
+                    echo "REASON: $FOLLOW_UP" >> "$JOB_DIR/HISTORY"
+                    echo " " >> "$JOB_DIR/HISTORY"
 
-                    echo "INPUT: $INPUT" >> $JOB_DIR/JOURNAL
-                    echo "PROMPT: $PROMPT" >> $JOB_DIR/JOURNAL
-                    echo "RESPONSE: $RESPONSE" >> $JOB_DIR/JOURNAL
-                    echo "NEXT COMMAND: $COMMAND" >> $JOB_DIR/JOURNAL
-                    echo "EXPLANATION: $EXPLANATION" >> $JOB_DIR/JOURNAL
-                    echo "COMMAND CANCELED BY USER" >> $JOB_DIR/JOURNAL
-                    echo "REASON: $FOLLOW_UP" >> $JOB_DIR/JOURNAL
-                    echo " " >> $JOB_DIR/JOURNAL
+                    echo "INPUT: $INPUT" >> "$JOB_DIR/JOURNAL"
+                    echo "PROMPT: $PROMPT" >> "$JOB_DIR/JOURNAL"
+                    echo "RESPONSE: $RESPONSE" >> "$JOB_DIR/JOURNAL"
+                    echo "NEXT COMMAND: $COMMAND" >> "$JOB_DIR/JOURNAL"
+                    echo "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/JOURNAL"
+                    echo "COMMAND CANCELED BY USER" >> "$JOB_DIR/JOURNAL"
+                    echo "REASON: $FOLLOW_UP" >> "$JOB_DIR/JOURNAL"
+                    echo " " >> "$JOB_DIR/JOURNAL"
 
-                    echo $FOLLOW_UP >> $JOB_DIR/ADDITIONAL
+                    echo $FOLLOW_UP >> "$JOB_DIR/ADDITIONAL"
 
-                    echo -e "\nGOAL: $GOAL" > $JOB_DIR/FOCUS
-                    echo -e "\nPLANNING:\n$PLAN" >> $JOB_DIR/FOCUS
-                    echo -e "\nINPUT: $INPUT" >> $JOB_DIR/FOCUS
-                    echo -e "\nFOLLOW UP: $FOLLOW_UP" >> $JOB_DIR/FOCUS
-                    echo -e "EXPLANATION: $EXPLANATION" >> $JOB_DIR/FOCUS
+                    echo -e "\nGOAL: $GOAL" > "$JOB_DIR/FOCUS"
+                    echo -e "\nPLANNING:\n$PLAN" >> "$JOB_DIR/FOCUS"
+                    echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
+                    echo -e "\nFOLLOW UP: $FOLLOW_UP" >> "$JOB_DIR/FOCUS"
+                    echo -e "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/FOCUS"
 
-                    echo "$EXPLANATION" > $JOB_DIR/EXPLANATION
+                    echo "$EXPLANATION" > "$JOB_DIR/EXPLANATION"
 
                     INPUT="$FOLLOW_UP"
                     echo -e "$INPUT\n"
@@ -2963,7 +3140,7 @@ fi
                 fi
             fi
 
-            echo "" > $JOB_DIR/NEXTACTION
+            echo "" > "$JOB_DIR/NEXTACTION"
         fi
 
 
@@ -2972,29 +3149,31 @@ fi
         #echo "${CYAN}» Generating task plan${NC}"
         textbox 2 "${CYAN}» Homing in on target${NC}" "thinking"
 
-        PLANNING_RULES=$(cat $JOB_DIR/config/BEE_PLANNING)
+        PLANNING_RULES=$(cat "$JOB_DIR/config/BEE_PLANNING")
         INPUT_TMP=$INPUT
         TASK="Write a plan with the tasks to complete this job:\n$INPUT\n\nPlace the plan as one ascii text string in the explanation field of a JSON structure."
         INPUT="$PLANNING_RULES\n$TASK\nRULES ARE:\n$PROFILE\n$RULES\n$ENV"
         PROMPT=$INPUT
 
         echo -e "$TASK\n"
-        echo "$PROMPT" >> $JOB_DIR/PROMPTLOG
-        echo "$PROMPT" > $JOB_DIR/LASTPROMPT
+        echo "$PROMPT" >> "$JOB_DIR/PROMPTLOG"
+        echo "$PROMPT" > "$JOB_DIR/LASTPROMPT"
 
         textdebug 2 "INPUT+=$PLANNING_RULES"
+
+        load_model
 
         analyze_prompt
 
         if [[ $EXPLANATION != "" ]]; then
-            echo "$EXPLANATION" > $JOB_DIR/PLAN
+            echo "$EXPLANATION" > "$JOB_DIR/PLAN"
             INPUT="$INPUT_TMP"
             INPUT_TMP=""
 
-            echo -e "\nGOAL: $GOAL" > $JOB_DIR/FOCUS
-            echo -e "\nPLANNING:\n$EXPLANATION" >> $JOB_DIR/FOCUS
-            echo -e "\nINPUT: $INPUT" >> $JOB_DIR/FOCUS
-            echo -e "\nNEXT: $INPUT\n" >> $JOB_DIR/FOCUS
+            echo -e "\nGOAL: $GOAL" > "$JOB_DIR/FOCUS"
+            echo -e "\nPLANNING:\n$EXPLANATION" >> "$JOB_DIR/FOCUS"
+            echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
+            echo -e "\nNEXT: $INPUT\n" >> "$JOB_DIR/FOCUS"
             
             update_hud_json
         else
