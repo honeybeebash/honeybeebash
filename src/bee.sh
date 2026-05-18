@@ -2903,7 +2903,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                     rm -f "$JOB_DIR/PENDINGREQUEST"
                     rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
 
-                elif [[ -n "$DISALLOWED_COMMAND" ]] && [[ "$MODE_AUTOMATIC" == "RESTRICTIVE" ]]; then
+                elif [[ -n "$DISALLOWED_COMMAND" ]] && [[ "$MODE_AUTOMATIC" == "RESTRICTIVE" || "$DISALLOWED_BY" == "ForbiddenList" || "$DISALLOWED_BY" == "Run rules" ]]; then
                     textbox 1 "${CYAN}» Skipping due to rule by $DISALLOWED_BY${NC}" "$DISALLOWED_COMMAND" "whatever" 
                     echo "SKIPPING by rule of $DISALLOWED_BY" >> "$JOB_DIR/REASONING"
                     INPUT="The following commandline was not allowed: $DISALLOWED_COMMAND"
