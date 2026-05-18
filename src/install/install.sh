@@ -102,6 +102,7 @@ HONEYBEE_PATHS=(
     "monitor.sh"
     "detector.py"
     "config-default/bee.conf-default"
+    "config-default/notify.conf-default"
     "config-default/default-dataset.csv"
     "config-default/BEE_PROFILE"
     "config-default/BEE_PLANNING"
@@ -157,7 +158,7 @@ chmod +x install/*.sh tools/*.sh bee.sh
 # CRLF Cleaning (Ensures scripts run on Linux if edited on Windows)
 if [[ -f tools/crlf.sh ]]; then
     sed -i 's/\r$//' tools/crlf.sh
-    tools/crlf.sh bee.sh monitor.sh install/*.sh tools/*.sh config/* models/* 
+    tools/crlf.sh bee.sh monitor.sh install/* tools/* config/* models/* 
 fi
 
 
@@ -201,12 +202,18 @@ chmod 640 "$USER_LOCAL_DIR/models/"*
 # Copying default run config
 cp -f config-default/* "$USER_CONFIG_DIR/"
 cp "$USER_CONFIG_DIR/bee.conf-default" "$USER_CONFIG_DIR/bee.conf"
+
+# Copying default notify config
+cp "$USER_CONFIG_DIR/notify.conf-default" "$USER_CONFIG_DIR/notify.conf"
+
 chown $USER:$GROUP "$USER_CONFIG_DIR/"*
 chmod 640 "$USER_CONFIG_DIR/"*
 
-
 # Copy readme
-cp README.md "$BASE_DIR/README.md"
+cp ../*.md "$BASE_DIR/"
+cp ../LICENSE "$BASE_DIR/"
+cp ../gpl-3.0.txt "$BASE_DIR/"
+chown $USER:$GROUP "$BASE_DIR/"*.md "$BASE_DIR/LICENSE" "$BASE_DIR/gpl-3.0.txt"
 
 # Copy run files 
 cp bee.sh "$BASE_DIR/bee.sh"
@@ -537,6 +544,91 @@ user_email=${user_email:-}
 echo " "
 read -p "$ICON_INPUT Enter your HiveHub API key (Enter to skip) : " user_key
 user_key=${user_key:-}
+
+
+# --- Append new keys to old configs ---
+MODEL_DIR="$HOME/.local/share/honeybeebash/models"
+DEFAULT_VAR='SELECTED_MODEL_MAX_CHARACTERS="4000000"'
+
+# Check if the directory actually exists and contains .conf files
+if [ -d "$MODEL_DIR" ] && ls "$MODEL_DIR"/*.conf &>/dev/null; then
+    for MODEL_FILE in "$MODEL_DIR"/*.conf; do
+        # Extract just the filename for cleaner terminal reporting
+        filename=$(basename "$MODEL_FILE")
+
+        # Check if the variable name exists in the specific file (ignoring comments)
+        if ! grep -q "^[[:space:]]*SELECTED_MODEL_MAX_CHARACTERS=" "$MODEL_FILE" 2>/dev/null; then
+            echo "Adding default max characters to: $filename"
+            
+            # Ensure the file ends with a newline before appending
+            sed -i -e '$a\' "$MODEL_FILE" 2>/dev/null || echo "" >> "$MODEL_FILE"
+            
+            # Append the default variable string
+            echo "$DEFAULT_VAR" >> "$MODEL_FILE"
+        else
+            echo "Skipping $filename: Variable already exists."
+        fi
+    done
+else
+    echo "Error: Directory does not exist or no .conf files were found in $MODEL_DIR"
+fi
+
+
+# --- Notification configuration ---
+echo " "
+echo "If you wish to configure to enable email configurations continue below."
+echo "You can enable this later by completing \$HOME/.config/honeybeebash/notify.conf"
+
+echo " "
+read -p "$ICON_QUESTION Configure notifications by mail ? (y/n): " configure_email
+if [[ "$configure_email" =~ ^[Yy]$ ]]; then
+
+    read -p "$ICON_INPUT Enter the hostname of your mailserver : " host
+    host=${host:-}
+
+    read -p "$ICON_INPUT Enter the port number (Enter for 587) : " port
+    port=${port:-}
+    if [[ -z "$port" ]]; then
+        port="587"
+    fi
+
+    read -p "$ICON_INPUT Enter the account username : " username
+    username=${username:-}
+
+    read -p "$ICON_INPUT Enter the account password : " password
+    password=${password:-}
+    
+    # --- Writing to notify.conf ---
+    cat << EOF >> $USER_CONFIG_DIR/notify.conf
+
+# --- Account Configuration ---
+
+our \$smtp_server = '$host'; 
+our \$smtp_port   = $port;                      # Use 587 for standard authenticated submission
+our \$smtp_user   = '$username';     # Your mail server username
+our \$smtp_pass   = '$password';     # Your mail server password
+
+1; # Crucial success return value
+EOF
+
+    echo "✅ Configuration written to notify.conf successfully."
+
+else
+    # Write default to config
+    cat << EOF >> $USER_CONFIG_DIR/notify.conf
+
+# --- Account Configuration ---
+
+our \$smtp_server = ''; 
+our \$smtp_port   = ;       # Use 587 for standard authenticated submission
+our \$smtp_user   = '';     # Your mail server username
+our \$smtp_pass   = '';     # Your mail server password
+
+1; # Crucial success return value
+EOF
+
+fi
+
 
 
 # --- Choose sudo mode ---

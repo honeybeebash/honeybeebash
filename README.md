@@ -11,7 +11,7 @@
 
 
 ## Project Info
-**Version:** 1.0.0  
+**Version:** 1.0.1
 **Author:** M.D.P de Clerck ([mike@clerck.nl](mailto:mike@clerck.nl))  
 **License:** [GNU General Public License v3](LICENSE)
 
@@ -339,6 +339,20 @@ The code follows a standard "Train then Predict" workflow:
 2. The Brain (RandomForestClassifier) is an ensemble of "Decision Trees." Imagine a hundred little "Yes/No" flowcharts. One tree might ask, "Does it have sudo?", another asks, "Is there a weird IP address?". They all vote, and the majority wins.
 
 When the Bee attempts to use a command suggested by the LLM, the model calculates the probability that it matches the "malicious" patterns it learned from dataset.csv. If it fails this last layer of detection then Bee will ask for manual response for that command. This process extends the dataset.csv with approved commands during use.
+
+
+## Notification by email
+
+Notification of results, warnings or errors is possible by instructing Bee to place such notification in a file and have the tools/notify.pl script running from crontab to detect if the file has contents and if so transmit them by email. By default the file is removed for reuse. 
+
+The script supports TLS and is used as shown below;
+
+Usage: notify.pl {subject} {to} {path/file} [clear]
+
+For emailing found issues every minute the below line can be used in crontab -e
+
+* * * * * perl /opt/honeybeebash/tools/notify.pl "HoneyBeeBash - bee@MailRig002" warnings@myemaildomain.com $HOME/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS
+
 
 
 

@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.1
+# @version   1.0.2
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -72,7 +72,7 @@ USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.1"
+BEE_VERSION="1.0.2"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -2179,7 +2179,7 @@ securitycheck() {
     if [[ "$COMMAND" =~ [[:cntrl:]] ]]; then
         beelog "${RED}$ICON_CRITICAL CRITICAL: Control characters detected. Possible Smuggling Attempt.${NC}"
         DISALLOWED_BY="Default"
-        DISALLOWED_COMMAND=$COMMAND
+        DISALLOWED_COMMAND="$COMMAND"
         return 0
     fi
 
@@ -2202,7 +2202,7 @@ securitycheck() {
                 textline 1 "Access Denied: Found forbidden string '$FORBIDDEN_STR'"
                 beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden string detected '$FORBIDDEN_STR'.${NC}"
                 DISALLOWED_BY="ForbiddenList"
-                DISALLOWED_COMMAND=$COMMAND
+                DISALLOWED_COMMAND="$COMMAND"
                 return 0
             fi
         done < "$USER_CONFIG_DIR/RUN_FORBIDDEN"
@@ -2223,8 +2223,7 @@ securitycheck() {
         if sed 's/[[:space:]]*$//' "$USER_CONFIG_DIR/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
             textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by global policy.${NC}" "dead"
             DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND=$COMMAND
-            COMMAND=""
+            DISALLOWED_COMMAND="$COMMAND"
             return 0
         fi
     fi
@@ -2246,7 +2245,7 @@ securitycheck() {
                 textline 1 "Access Denied: Found forbidden string '$FORBIDDEN_STR'"
                 beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden string detected '$FORBIDDEN_STR'.${NC}"
                 DISALLOWED_BY="ForbiddenList"
-                DISALLOWED_COMMAND=$COMMAND
+                DISALLOWED_COMMAND="$COMMAND"
                 return 0
             fi
         done < "$JOB_DIR/config/RUN_FORBIDDEN"
@@ -2264,8 +2263,7 @@ securitycheck() {
         if sed 's/[[:space:]]*$//' "$JOB_DIR/config/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
             textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by job policy.${NC}" "dead"
             DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND=$COMMAND
-            COMMAND=""
+            DISALLOWED_COMMAND="$COMMAND"
             return 0
         fi
     fi
@@ -2283,7 +2281,7 @@ securitycheck() {
         elif [ $MODE_AUTOMATIC == "RESTRICTIVE" ]; then
             textbox 1 "${RED}$ICON_SUCCES ALERT: Restrictive mode. No whitelist found for command${NC}" "angry"
             DISALLOWED_BY="Default"
-            DISALLOWED_COMMAND=$COMMAND
+            DISALLOWED_COMMAND="$COMMAND"
             return 0
         fi
         textbox 1 "${RED}$ICON_SUCCES ALERT ALERT: Manual mode.${NC}" "angry"
@@ -2336,7 +2334,7 @@ securitycheck() {
         # Only flag if result is NOT 0 (Manual), 9 (Vantage), or 10 (Clear Water)
         if [ "$PYRESULT" -ne 0 ] && [ "$PYRESULT" -ne 9 ] && [ "$PYRESULT" -ne 10 ]; then
             DISALLOWED_BY="SciKit"
-            DISALLOWED_COMMAND=$COMMAND
+            DISALLOWED_COMMAND="$COMMAND"
         fi
 
         if [ -n "$DISALLOWED_COMMAND" ]; then
@@ -2905,7 +2903,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                     rm -f "$JOB_DIR/PENDINGREQUEST"
                     rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
 
-                elif [[ -n "$DISALLOWED_COMMAND" ]] && [[ "$MODE_AUTOMATIC" == "RESTRICTIVE" ]]; then
+                elif [[ -n "$DISALLOWED_COMMAND" ]] && [[ "$MODE_AUTOMATIC" == "RESTRICTIVE" || "$DISALLOWED_BY" == "ForbiddenList" || "$DISALLOWED_BY" == "Run rules" ]]; then
                     textbox 1 "${CYAN}» Skipping due to rule by $DISALLOWED_BY${NC}" "$DISALLOWED_COMMAND" "whatever" 
                     echo "SKIPPING by rule of $DISALLOWED_BY" >> "$JOB_DIR/REASONING"
                     INPUT="The following commandline was not allowed: $DISALLOWED_COMMAND"
@@ -2968,9 +2966,9 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                                     W=1; L=0; update_hive "$COMMAND" $L $W; 
                                     break ;;
                                 a) # Always (Weight 10)
-                                    textbox 0 "${CYAN}» Manually approved for always${NC}" "$DISALLOWED_COMMAND" "rich" 
-                                    W=100; L=0; update_hive "$COMMAND" $L $W; 
-                                    echo "$COMMAND" >> "$JOB_DIR/config/RUN_ALWAYS "
+                                    textbox 0 "${CYAN}» Manually approved for always $JOB_DIR${NC}" "$DISALLOWED_COMMAND" "rich" 
+                                    W=1; L=0; update_hive "$COMMAND" $L $W; 
+                                    echo "$COMMAND" >> "$JOB_DIR/config/RUN_ALWAYS"
                                     sort -u -o "$JOB_DIR/config/RUN_ALWAYS" "$JOB_DIR/config/RUN_ALWAYS"
                                     break ;;
                                 s) # SKIP
@@ -2983,7 +2981,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                                 n) # NEVER (Weight 10 + Label 1)
                                     textbox 0 "${CYAN}» Manually rejected for always${NC}" "$DISALLOWED_COMMAND" "annoyed" 
                                     echo "REJECTED for always" >> "$JOB_DIR/REASONING"
-                                    W=100; L=1; update_hive "$COMMAND" $L $W; 
+                                    W=1; L=1; update_hive "$COMMAND" $L $W; 
                                     echo "$COMMAND" >> "$JOB_DIR/config/RUN_NEVER"
                                     sort -u -o "$JOB_DIR/config/RUN_NEVER" "$JOB_DIR/config/RUN_NEVER"
                                     FOLLOW_UP="Last command '$COMMAND' was rejected for ever. Do not use this again."
