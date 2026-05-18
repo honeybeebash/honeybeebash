@@ -13,7 +13,7 @@
 # PROJECT:   MONITOR.SH (The HoneyBee Bash Bee Monitor)
 # PURPOSE:   Monitor and control Bee jobs
 # ------------------------------------------------------------------------------
-# @version   1.0.1
+# @version   1.0.2
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
