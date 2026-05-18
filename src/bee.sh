@@ -1165,10 +1165,10 @@ rotate_journal() {
         [[ -f "$f" ]] || continue
         suffix="${f##*.}"
         [[ "$suffix" =~ ^[0-9]+$ ]] || continue
-        (( 10#$suffix > n )) && n=$((10#$suffix))
+        [[ 10#$suffix -gt "$n" ]] && n=$((10#$suffix))
     done
     shopt -u nullglob
-    (( ++n ))
+    n=$((n + 1))
     mv -- "$jpath" "$dir/$base.$n"
 }
 
@@ -1803,7 +1803,7 @@ remote_googleai(){
         
         # CASE: Rate Limit
         if [[ "$ERR_MSG" =~ retry\ in\ ([0-9.]+)s ]] || [[ "$RESPONSE" == *"RESOURCE_EXHAUSTED"* ]]; then
-            (( rate_retries++ )) || true
+            rate_retries=$((rate_retries + 1))
             if [ "$rate_retries" -gt "$MAX_RATE_LIMIT_RETRIES" ]; then
                 end_program 1 "Rate limit retries exhausted."
             fi
@@ -1942,7 +1942,7 @@ trim_to_max_tokens() {
     local total_chars=${#text}
 
     # If the text is already under the budget, output it directly
-    if (( total_chars <= max_chars )); then
+    if [[ "$total_chars" -le "$max_chars" ]]; then
         echo -n "$text"
     else
         # Extract exactly the first X characters (pure Bash, left-to-right)
@@ -1955,7 +1955,7 @@ load_model() {
     if [ $LLM_MODEL == "local" ]; then
         if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
             source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
-            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && (( SELECTED_MODEL_MAX_CHARACTERS > 0 )); then
+            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && [[ "$SELECTED_MODEL_MAX_CHARACTERS" -gt "0" ]]; then
                 APPLIED_MODEL_MAX_CHARACTERS="$SELECTED_MODEL_MAX_CHARACTERS"
             fi
             export GEMINI_API_KEY="$GEMINI_API_KEY"
@@ -1967,7 +1967,7 @@ load_model() {
     else
        if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
             source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
-            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && (( SELECTED_MODEL_MAX_CHARACTERS > 0 )); then
+            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && [[ "$SELECTED_MODEL_MAX_CHARACTERS" -gt "0" ]]; then
                 APPLIED_MODEL_MAX_CHARACTERS="$SELECTED_MODEL_MAX_CHARACTERS"
             fi
             export SELECTED_MODEL_NAME="$SELECTED_MODEL_NAME"
@@ -2399,7 +2399,7 @@ is_lan_address() {
 build_prompt() {
 
     # Parameter validation
-    if [[ -z "$SELECTED_CONTEXT_SIZE" ]] || (( SELECTED_CONTEXT_SIZE < 1 )); then
+    if [[ -z "$SELECTED_CONTEXT_SIZE" ]] || [[ "$SELECTED_CONTEXT_SIZE" -lt "1" ]]; then
         end_program 1 "Prompt builder is missing SELECTED_CONTEXT_SIZE. Check the model '$MODEL' configuration."
     fi
 
@@ -2453,15 +2453,15 @@ $LAST_CONTEXT"
     SHORTEN="false"
 
     # Evaluate whether a trim sequence is necessary
-    if [[ "$DO_CAP_RESPONSE" == "true" ]] && (( token_count_prompt > DO_MAX_CAP_RESPONSE )); then
+    if [[ "$DO_CAP_RESPONSE" == "true" ]] && [[ "$token_count_prompt" -gt "$DO_MAX_CAP_RESPONSE" ]]; then
         SHORTEN="true"
     fi
-    if (( token_count_prompt > SELECTED_CONTEXT_SIZE )); then
+    if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
         SHORTEN="true"
     fi
 
     char_count_prompt=${#PROMPT} 
-    if (( char_count_prompt > APPLIED_MODEL_MAX_CHARACTERS )); then
+    if [[ "$char_count_prompt" -gt "$APPLIED_MODEL_MAX_CHARACTERS" ]]; then
         SHORTEN="true"
     fi
 
@@ -2501,17 +2501,17 @@ $RESULT"
         TMP_PROMPT="### SYSTEM INSTRUCTIONS$PROFILE$RULES$ADDITIONAL### ENVIRONMENT$ENV### Initial GOAL and PLAN$GOAL$PLAN### TASK / FOLLOWUP$INPUT$NOTES### COMMANDS EXECUTED SO FAR$COMMANDLOG### LAST COMMAND$COMMAND### RESULT OF LAST COMMAND"
         token_count_tmp_prompt=$(get_token_count "$TMP_PROMPT")
         
-        if [[ "$DO_CAP_RESPONSE" == "true" ]] && (( token_count_prompt > DO_MAX_CAP_RESPONSE )); then
+        if [[ "$DO_CAP_RESPONSE" == "true" ]] && [[ "$token_count_prompt" -gt "$DO_MAX_CAP_RESPONSE" ]]; then
             SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - token_count_tmp_prompt - 100 ))
         fi
-        if (( token_count_prompt > SELECTED_CONTEXT_SIZE )); then
-            if [[ -z "$SHORTEN_TO_TOKENS" ]] || (( SHORTEN_TO_TOKENS > SELECTED_CONTEXT_SIZE )); then
+        if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
+            if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
                 SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - token_count_tmp_prompt - 100 ))
             fi
         fi
 
         # STEP 2: If headroom is still negative, aggressively isolate and slice the $RESULT payload
-        if [[ -n "$SHORTEN_TO_TOKENS" ]] && (( SHORTEN_TO_TOKENS > 0 )); then
+        if [[ -n "$SHORTEN_TO_TOKENS" ]] && [[ "$SHORTEN_TO_TOKENS" -gt "0" ]]; then
             textline 1 "${CYAN}» Prompt remains over capacity. Trimming command result logs.${NC}\n"
             TMP_RESULTS=$(trim_to_max_tokens "$RESULT" "$SHORTEN_TO_TOKENS")
             RESULT="$TMP_RESULTS
@@ -2548,16 +2548,16 @@ $RESULT"
     token_count_prompt=$(get_token_count "$PROMPT")
     SHORTEN_TO_TOKENS=""
 
-    if [[ "$DO_CAP_RESPONSE" == "true" ]] && (( token_count_prompt > DO_MAX_CAP_RESPONSE )); then
+    if [[ "$DO_CAP_RESPONSE" == "true" ]] && [[ "$token_count_prompt" -gt "$DO_MAX_CAP_RESPONSE" ]]; then
         SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - 100 ))
     fi
-    if (( token_count_prompt > SELECTED_CONTEXT_SIZE )); then
-        if [[ -z "$SHORTEN_TO_TOKENS" ]] || (( SHORTEN_TO_TOKENS > SELECTED_CONTEXT_SIZE )); then
+    if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
+        if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
             SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - 100 ))
         fi
     fi
 
-    if [[ -n "$SHORTEN_TO_TOKENS" ]] && (( SHORTEN_TO_TOKENS > 0 )); then
+    if [[ -n "$SHORTEN_TO_TOKENS" ]] && [[ "$SHORTEN_TO_TOKENS" -gt "0" ]]; then
         textline 1 "${CYAN}» Prompt forced macro trim state ($token_count_prompt tokens). Finalizing.${NC}\n"
         TMP_PROMPT=$(trim_to_max_tokens "$PROMPT" "$SHORTEN_TO_TOKENS")
         PROMPT="$TMP_PROMPT
@@ -2567,10 +2567,10 @@ $RESULT"
 
     # STEP 4: Hard Stop Character Truncation (Economy setting)
     char_count_prompt=${#PROMPT} 
-    if (( char_count_prompt > APPLIED_MODEL_MAX_CHARACTERS )); then
+    if [[ "$char_count_prompt" -gt "$APPLIED_MODEL_MAX_CHARACTERS" ]]; then
         # Dynamically set safety padding offset margin
         LOCAL_TRIGGER=$(( APPLIED_MODEL_MAX_CHARACTERS - 1000 ))
-        if (( LOCAL_TRIGGER > 0 )); then
+        if [[ "$LOCAL_TRIGGER" -gt "0" ]]; then
             textline 1 "${CYAN}» Final economy limit tripped (${char_count_prompt} chars). Truncating prompt raw string.${NC}\n"
             TMP_PROMPT="${PROMPT:0:$LOCAL_TRIGGER}"
             PROMPT="$TMP_PROMPT
@@ -2690,7 +2690,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
     textdebug 0 "Main Loop cycle : $CYCLE"
 
     echo "$$" > "$JOB_DIR/PID"
-    (( CYCLE++ )) || true
+    CYCLE=$((CYCLE + 1))
     echo $CYCLE > "$JOB_DIR/CYCLE"
     
     # Check runtime monitor Quit command
@@ -2924,8 +2924,8 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                         
                         while [[ -z "$REPLY" ]]; do
                             # signal alive every 20 seconds second
-                            ((count++)) || true
-                            if (( count > 100 )); then
+                            count=$((count + 1))
+                            if [[ "$count" -gt "100" ]]; then
                                 count=0
                                 bee_signal "$JOB_NAME" "WAITING"
                             fi
