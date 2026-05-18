@@ -2968,9 +2968,9 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                                     W=1; L=0; update_hive "$COMMAND" $L $W; 
                                     break ;;
                                 a) # Always (Weight 10)
-                                    textbox 0 "${CYAN}» Manually approved for always${NC}" "$DISALLOWED_COMMAND" "rich" 
-                                    W=100; L=0; update_hive "$COMMAND" $L $W; 
-                                    echo "$COMMAND" >> "$JOB_DIR/config/RUN_ALWAYS "
+                                    textbox 0 "${CYAN}» Manually approved for always $JOB_DIR${NC}" "$DISALLOWED_COMMAND" "rich" 
+                                    W=1; L=0; update_hive "$COMMAND" $L $W; 
+                                    echo "$COMMAND" >> "$JOB_DIR/config/RUN_ALWAYS"
                                     sort -u -o "$JOB_DIR/config/RUN_ALWAYS" "$JOB_DIR/config/RUN_ALWAYS"
                                     break ;;
                                 s) # SKIP
@@ -2983,7 +2983,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                                 n) # NEVER (Weight 10 + Label 1)
                                     textbox 0 "${CYAN}» Manually rejected for always${NC}" "$DISALLOWED_COMMAND" "annoyed" 
                                     echo "REJECTED for always" >> "$JOB_DIR/REASONING"
-                                    W=100; L=1; update_hive "$COMMAND" $L $W; 
+                                    W=1; L=1; update_hive "$COMMAND" $L $W; 
                                     echo "$COMMAND" >> "$JOB_DIR/config/RUN_NEVER"
                                     sort -u -o "$JOB_DIR/config/RUN_NEVER" "$JOB_DIR/config/RUN_NEVER"
                                     FOLLOW_UP="Last command '$COMMAND' was rejected for ever. Do not use this again."

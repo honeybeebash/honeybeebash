@@ -1,0 +1,10 @@
+# --- Configuration for notifications --- 
+# Requires the following fields defined;
+
+# my $smtp_server = 'smtp.yourmailserver.com'; 
+# my $smtp_port   = 587;            # Use 587 for standard authenticated submission
+# my $smtp_user   = 'username';     # Your mail server username
+# my $smtp_pass   = 'password';     # Your mail server password
+# my $smtp_from   = 'email';        # The From email addres to sent from
+
+
