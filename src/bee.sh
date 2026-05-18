@@ -2179,7 +2179,7 @@ securitycheck() {
     if [[ "$COMMAND" =~ [[:cntrl:]] ]]; then
         beelog "${RED}$ICON_CRITICAL CRITICAL: Control characters detected. Possible Smuggling Attempt.${NC}"
         DISALLOWED_BY="Default"
-        DISALLOWED_COMMAND=$COMMAND
+        DISALLOWED_COMMAND="$COMMAND"
         return 0
     fi
 
@@ -2202,7 +2202,7 @@ securitycheck() {
                 textline 1 "Access Denied: Found forbidden string '$FORBIDDEN_STR'"
                 beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden string detected '$FORBIDDEN_STR'.${NC}"
                 DISALLOWED_BY="ForbiddenList"
-                DISALLOWED_COMMAND=$COMMAND
+                DISALLOWED_COMMAND="$COMMAND"
                 return 0
             fi
         done < "$USER_CONFIG_DIR/RUN_FORBIDDEN"
@@ -2223,8 +2223,7 @@ securitycheck() {
         if sed 's/[[:space:]]*$//' "$USER_CONFIG_DIR/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
             textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by global policy.${NC}" "dead"
             DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND=$COMMAND
-            COMMAND=""
+            DISALLOWED_COMMAND="$COMMAND"
             return 0
         fi
     fi
@@ -2246,7 +2245,7 @@ securitycheck() {
                 textline 1 "Access Denied: Found forbidden string '$FORBIDDEN_STR'"
                 beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden string detected '$FORBIDDEN_STR'.${NC}"
                 DISALLOWED_BY="ForbiddenList"
-                DISALLOWED_COMMAND=$COMMAND
+                DISALLOWED_COMMAND="$COMMAND"
                 return 0
             fi
         done < "$JOB_DIR/config/RUN_FORBIDDEN"
@@ -2264,8 +2263,7 @@ securitycheck() {
         if sed 's/[[:space:]]*$//' "$JOB_DIR/config/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
             textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by job policy.${NC}" "dead"
             DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND=$COMMAND
-            COMMAND=""
+            DISALLOWED_COMMAND="$COMMAND"
             return 0
         fi
     fi
@@ -2283,7 +2281,7 @@ securitycheck() {
         elif [ $MODE_AUTOMATIC == "RESTRICTIVE" ]; then
             textbox 1 "${RED}$ICON_SUCCES ALERT: Restrictive mode. No whitelist found for command${NC}" "angry"
             DISALLOWED_BY="Default"
-            DISALLOWED_COMMAND=$COMMAND
+            DISALLOWED_COMMAND="$COMMAND"
             return 0
         fi
         textbox 1 "${RED}$ICON_SUCCES ALERT ALERT: Manual mode.${NC}" "angry"
@@ -2336,7 +2334,7 @@ securitycheck() {
         # Only flag if result is NOT 0 (Manual), 9 (Vantage), or 10 (Clear Water)
         if [ "$PYRESULT" -ne 0 ] && [ "$PYRESULT" -ne 9 ] && [ "$PYRESULT" -ne 10 ]; then
             DISALLOWED_BY="SciKit"
-            DISALLOWED_COMMAND=$COMMAND
+            DISALLOWED_COMMAND="$COMMAND"
         fi
 
         if [ -n "$DISALLOWED_COMMAND" ]; then
