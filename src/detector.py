@@ -8,6 +8,14 @@ import os
 import sys
 import signal
 
+# --- COLOR & ICON DEFINITIONS ---
+# Standard ANSI Colors (Work in most environments)
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
+
 exit_requested = False
 def handle_sigint(sig, frame):
     global exit_requested
@@ -34,14 +42,6 @@ SECURITY_POLICY = "PERMISSIVE"
 MODEL_FILE = ""
 VECTORIZER_FILE = ""
 DATASET_FILE = ""
-
-# --- COLOR & ICON DEFINITIONS ---
-# Standard ANSI Colors (Work in most environments)
-GREEN = "\033[92m"
-YELLOW = "\033[93m"
-RED = "\033[91m"
-BOLD = "\033[1m"
-RESET = "\033[0m"
 
 # Detect if we are in a raw terminal (linux console) or a modern one
 # The 'linux' term usually refers to the raw TTY/System console.

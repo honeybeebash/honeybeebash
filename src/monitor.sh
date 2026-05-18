@@ -13,7 +13,7 @@
 # PROJECT:   MONITOR.SH (The HoneyBee Bash Bee Monitor)
 # PURPOSE:   Monitor and control Bee jobs
 # ------------------------------------------------------------------------------
-# @version   1.0.0
+# @version   1.0.1
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -894,34 +894,141 @@ show_jobs() {
 }
 
 select_bee() {
-    # We exclude the 'sudo' wrapper by looking for the shell executor
+    # Target the precise shell executor matching your script name
     active_pids=$(pgrep -f "/bin/bash .*bee.sh")
-
+    
+    # Fallback: Look for the exact word 'bee.sh' or 'bee', ignoring wrapper structures
     if [ -z "$active_pids" ]; then
-        # Fallback: if they didn't use bash explicitly, try pgrep but filter out 'sudo'
-        active_pids=$(pgrep -f "bee.sh" | xargs -r ps -o pid=,comm= | grep -v "sudo" | awk '{print $1}')
+        # -d ' ' joins the output PIDs cleanly into a space-separated string
+        # Using word boundaries ensures pid 1234 running "beer-app" isn't targeted
+        active_pids=$(pgrep -d ' ' -f "\<bee\.sh\>|\<bee\>")
     fi
+    
+    # Security & Automation Clean-Up
+    # Strip out the PID of the currently running script ($$) and its parent shell ($PPID) 
+    # so the utility never targets its own selection window interface
+    if [ -n "$active_pids" ]; then
+        CLEAN_PIDS=""
+        for pid in $active_pids; do
+            if [[ "$pid" != "$$" ]] && [[ "$pid" != "$PPID" ]]; then
+                # Filter out system service tasks (like PID 1 - systemd/init)
+                if (( pid > 10 )); then
+                    CLEAN_PIDS="$CLEAN_PIDS $pid"
+                fi
+            fi
+        done
+        active_pids=$(echo "$CLEAN_PIDS" | xargs)
+    fi
+
+    # Security & Automation Clean-Up + Dynamic Tree Filtering
+    if [ -n "$active_pids" ]; then
+        CLEAN_PIDS=""
+        for pid in $active_pids; do
+            # 1. Skip current execution ($$) and parent menu shell ($PPID)
+            if [[ "$pid" == "$$" ]] || [[ "$pid" == "$PPID" ]]; then
+                continue
+            fi
+
+            # 2. Skip low-level system services
+            if (( pid <= 10 )); then
+                continue
+            fi
+
+            # 3. Get the Command Name and Parent PID (PPID) in one go
+            proc_info=$(ps -p "$pid" -o ppid=,comm= 2>/dev/null)
+            if [ -z "$proc_info" ]; then
+                continue
+            fi
+
+            parent_pid=$(echo "$proc_info" | awk '{print $1}')
+            proc_comm=$(echo "$proc_info" | awk '{print $2}')
+
+            # 4. Filter out search tools
+            if [[ "$proc_comm" == *"pgrep"* ]] || [[ "$proc_comm" == *"grep"* ]]; then
+                continue
+            fi
+
+            # 5. Filter out the outer 'script' wrapper itself
+            if [[ "$proc_comm" == "script" ]]; then
+                continue
+            fi
+
+            # 6. TREE VERIFICATION: If the parent of this PID is also called "script",
+            # then THIS PID is definitively our inner worker job!
+            parent_comm=$(ps -p "$parent_pid" -o comm= 2>/dev/null | xargs)
+            if [[ "$parent_comm" == "script" ]]; then
+                # Found the target process running inside the wrapper session
+                CLEAN_PIDS="$CLEAN_PIDS $pid"
+                continue
+            fi
+
+            # Fallback: If it's a standalone run (no script wrapper parent), 
+            # keep it anyway so manual runs still show up in the menu.
+            if [ -z "$parent_comm" ] || [[ "$parent_comm" != "script" ]]; then
+                CLEAN_PIDS="$CLEAN_PIDS $pid"
+            fi
+        done
+        active_pids=$(echo "$CLEAN_PIDS" | xargs)
+    fi
+
     if [ -z "$active_pids" ]; then
         echo "No active bee.sh worker processes found."
         return 0
     fi
 
+
     options=()
     for pid in $active_pids; do
-        # Look for the JOB_NAME by finding which PID file contains this number
-        # Using -w to match the exact PID word
+        # 1. Grab the raw TTY name for this specific PID (e.g., "pts/1" or "?")
+        raw_tty=$(ps -p "$pid" -o tty= | xargs)
+
+        # 2. Reconstruct the session file path using your naming convention
+        session_data=""
+        if [ -n "$raw_tty" ] && [ "$raw_tty" != "?" ]; then
+            # Convert /dev/pts/1 into _dev_pts_1
+            formatted_tty=$(echo "/dev/$raw_tty" | sed 's/\//_/g')
+            session_file="$HOME/.bee_session${formatted_tty}"
+            
+            # If the file exists and isn't empty, read its contents
+            if [ -s "$session_file" ]; then
+                # Grabs the content (e.g., a status or description string inside the file)
+                session_data=" | Info: $(cat "$session_file" | head -n 1)"
+            fi
+        fi
+
+        # 3. Grab the job name from the session file if it exists
+        # (Assuming your session file contains "system-info:default")
+        session_job_name=""
+        if [ -s "$session_file" ]; then
+            session_raw=$(cat "$session_file" | head -n 1)
+            # Extract just the part before the colon (e.g., "system-info")
+            session_job_name="${session_raw%%:*}"
+        fi
+
+        # 4. Try looking up the Job Name using the inner worker PID file
         job_file=$(grep -lw "$pid" $USER_LOCAL_DIR/*/*/PID 2>/dev/null | head -n 1)
 
+        # 3. Try looking up using its Parent PID (wrapper) if worker failed
+        if [ -z "$job_file" ]; then
+            parent_pid=$(ps -p "$pid" -o ppid= 2>/dev/null | xargs)
+            if [ -n "$parent_pid" ]; then
+                job_file=$(grep -lw "$parent_pid" $USER_LOCAL_DIR/*/*/PID 2>/dev/null | head -n 1)
+            fi
+        fi
+
+        # 5. Determine final menu display name
         if [ -n "$job_file" ]; then
+            # Found in system tracking directories
             found_job=$(basename "$(dirname "$job_file")")
-            options+=("$found_job [PID: $pid]")
+            options+=("$found_job [PID: $pid]$session_data")
+        elif [ -n "$session_job_name" ]; then
+            # Fallback 1: Found inside the session file data!
+            options+=("$session_job_name [PID: $pid]$session_data")
         else
-            # If it's not in a PID file, show it anyway as a 'Manual/Direct' run
-            options+=("Direct_Run [PID: $pid]")
+            # Fallback 2: Absolute last resort
+            options+=("Direct_Run [PID: $pid]$session_data")
         fi
     done
-
-    echo $(ps -p $TARGET_PID -o pid,ppid,pcpu,pmem,stat,args)
 
     echo "Select an active Bee:"
     echo "--------------------------------"
