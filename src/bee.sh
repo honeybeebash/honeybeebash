@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.0
+# @version   1.0.1
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -72,7 +72,7 @@ USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.0"
+BEE_VERSION="1.0.1"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -2687,7 +2687,10 @@ if [[ -n "$JOB_SESSION_FILE" ]]; then
 fi
 
 while [[ "$JOB_COMPLETED" == "false" ]]; do
-    textdebug 0 "\n\nMain Loop cycle : $CYCLE"; 
+    
+    textdebug  0 "- - - - - - - - - -"
+    textdebug 0 "Main Loop cycle : $CYCLE"
+
     echo "$$" > "$JOB_DIR/PID"
     (( CYCLE++ )) || true
     echo $CYCLE > "$JOB_DIR/CYCLE"
@@ -2955,62 +2958,64 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                         textline 0 ""
 
                         # ${REPLY,,} converts the input to lowercase automatically
-                        case "${REPLY,,}" in
-                            o) # ONCE no training
-                                textbox 0 "${CYAN}» Manually allowed once${NC}" "$DISALLOWED_COMMAND" "happy" 
-                                break ;;
-                            y) # YES
-                                textbox 0 "${CYAN}» Manually approved${NC}" "$DISALLOWED_COMMAND" "happy" 
-                                W=1; L=0; update_hive "$COMMAND" $L $W; 
-                                break ;;
-                            a) # Always (Weight 10)
-                                textbox 0 "${CYAN}» Manually approved for always${NC}" "$DISALLOWED_COMMAND" "rich" 
-                                W=100; L=0; update_hive "$COMMAND" $L $W; 
-                                echo "$COMMAND" >> "$JOB_DIR/config/RUN_ALWAYS "
-                                sort -u -o "$JOB_DIR/config/RUN_ALWAYS" "$JOB_DIR/config/RUN_ALWAYS"
-                                break ;;
-                            s) # SKIP
-                                textbox 0 "${CYAN}» Manually skipped${NC}" "$DISALLOWED_COMMAND" "annoyed" 
-                                echo "SKIPPED the command" >> "$JOB_DIR/REASONING"
-                                W=1; L=1; update_hive "$COMMAND" $L $W; 
-                                FOLLOW_UP="Last command '$COMMAND' was skipped. Try an alternative or move on."
-                                COMMAND=""
-                                break ;;
-                            n) # NEVER (Weight 10 + Label 1)
-                                textbox 0 "${CYAN}» Manually rejected for always${NC}" "$DISALLOWED_COMMAND" "annoyed" 
-                                echo "REJECTED for always" >> "$JOB_DIR/REASONING"
-                                W=100; L=1; update_hive "$COMMAND" $L $W; 
-                                echo "$COMMAND" >> "$JOB_DIR/config/RUN_NEVER"
-                                sort -u -o "$JOB_DIR/config/RUN_NEVER" "$JOB_DIR/config/RUN_NEVER"
-                                FOLLOW_UP="Last command '$COMMAND' was rejected for ever. Do not use this again."
-                                COMMAND=""
-                                break ;;
-                            r) # REPLACE
-                                textbox 0 "${CYAN}» Manually replacing${NC}" "$DISALLOWED_COMMAND" "waiting"
-                                echo -n "Enter the replacement command: "
-                                read -r COMMAND_REPLACEMENT
-                                echo "REPLACED by $COMMAND_REPLACEMENT" >> "$JOB_DIR/REASONING"
-                                echo "\"$COMMAND\":\"$COMMAND_REPLACEMENT\"" >> "$JOB_DIR/config/RUN_REPLACE"
-                                sort -u -o "$JOB_DIR/config/RUN_REPLACE" "$JOB_DIR/config/RUN_REPLACE"
-                                COMMAND="$COMMAND_REPLACEMENT"
-                                break ;;
-                            f) # FOLLOW
-                                textbox 0 "${CYAN}» Manual follow-up${NC}" "$DISALLOWED_COMMAND" "waiting"
-                                echo -n "Enter your follow-up instructions: "
-                                read -r FOLLOW_UP
-                                echo "FOLLOWUP: $FOLLOW_UP" >> "$JOB_DIR/REASONING"
-                                break ;;
+                        if [[ -n "$REPLY" ]]; then
+                            case "${REPLY,,}" in
+                                o) # ONCE no training
+                                    textbox 0 "${CYAN}» Manually allowed once${NC}" "$DISALLOWED_COMMAND" "happy" 
+                                    break ;;
+                                y) # YES
+                                    textbox 0 "${CYAN}» Manually approved${NC}" "$DISALLOWED_COMMAND" "happy" 
+                                    W=1; L=0; update_hive "$COMMAND" $L $W; 
+                                    break ;;
+                                a) # Always (Weight 10)
+                                    textbox 0 "${CYAN}» Manually approved for always${NC}" "$DISALLOWED_COMMAND" "rich" 
+                                    W=100; L=0; update_hive "$COMMAND" $L $W; 
+                                    echo "$COMMAND" >> "$JOB_DIR/config/RUN_ALWAYS "
+                                    sort -u -o "$JOB_DIR/config/RUN_ALWAYS" "$JOB_DIR/config/RUN_ALWAYS"
+                                    break ;;
+                                s) # SKIP
+                                    textbox 0 "${CYAN}» Manually skipped${NC}" "$DISALLOWED_COMMAND" "annoyed" 
+                                    echo "SKIPPED the command" >> "$JOB_DIR/REASONING"
+                                    W=1; L=1; update_hive "$COMMAND" $L $W; 
+                                    FOLLOW_UP="Last command '$COMMAND' was skipped. Try an alternative or move on."
+                                    COMMAND=""
+                                    break ;;
+                                n) # NEVER (Weight 10 + Label 1)
+                                    textbox 0 "${CYAN}» Manually rejected for always${NC}" "$DISALLOWED_COMMAND" "annoyed" 
+                                    echo "REJECTED for always" >> "$JOB_DIR/REASONING"
+                                    W=100; L=1; update_hive "$COMMAND" $L $W; 
+                                    echo "$COMMAND" >> "$JOB_DIR/config/RUN_NEVER"
+                                    sort -u -o "$JOB_DIR/config/RUN_NEVER" "$JOB_DIR/config/RUN_NEVER"
+                                    FOLLOW_UP="Last command '$COMMAND' was rejected for ever. Do not use this again."
+                                    COMMAND=""
+                                    break ;;
+                                r) # REPLACE
+                                    textbox 0 "${CYAN}» Manually replacing${NC}" "$DISALLOWED_COMMAND" "waiting"
+                                    echo -n "Enter the replacement command: "
+                                    read -r COMMAND_REPLACEMENT
+                                    echo "REPLACED by $COMMAND_REPLACEMENT" >> "$JOB_DIR/REASONING"
+                                    echo "\"$COMMAND\":\"$COMMAND_REPLACEMENT\"" >> "$JOB_DIR/config/RUN_REPLACE"
+                                    sort -u -o "$JOB_DIR/config/RUN_REPLACE" "$JOB_DIR/config/RUN_REPLACE"
+                                    COMMAND="$COMMAND_REPLACEMENT"
+                                    break ;;
+                                f) # FOLLOW
+                                    textbox 0 "${CYAN}» Manual follow-up${NC}" "$DISALLOWED_COMMAND" "waiting"
+                                    echo -n "Enter your follow-up instructions: "
+                                    read -r FOLLOW_UP
+                                    echo "FOLLOWUP: $FOLLOW_UP" >> "$JOB_DIR/REASONING"
+                                    break ;;
 
-                            q) # QUIT
-                                textbox 0 "${CYAN}» Exitting by user request.${NC}" "happy"
-                                bee_signal "$JOB_NAME" "DONE"
-                                end_program
-                                ;;
-                            *)
-                                # Handles Enter, Space, or any other key
-                                echo -e "${GOLD}⚠ Please press either of Yes/Once/Skip/Always/Never/Replace/Followup or 'q' to quit.${NC}"
-                                ;;
-                        esac
+                                q) # QUIT
+                                    textbox 0 "${CYAN}» Exitting by user request.${NC}" "happy"
+                                    bee_signal "$JOB_NAME" "DONE"
+                                    end_program
+                                    ;;
+                                *)
+                                    # Handles Enter, Space, or any other key
+                                    echo -e "${GOLD}⚠ Please press either of Yes/Once/Skip/Always/Never/Replace/Followup or 'q' to quit.${NC}"
+                                    ;;
+                            esac
+                        fi
                     done
                     bee_signal "$JOB_NAME" "RUNNING"
                 fi
