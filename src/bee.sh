@@ -2943,14 +2943,16 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                     rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
 
                 else
+                        
+                    echo "$COMMAND" > "$JOB_DIR/PENDINGREQUEST"
+                    textline 0 ""                    
+                    textbox 0 "${STYLE_QUEST}  EXECUTE ? ${NC} [Yes/Once/Skip/Always/Never/Replace/Followup/Quit]:" "> $COMMAND" "waiting" 
+                    textline 0 ""  
+                    
                     count=101
                     REPLY=""
                     while [[ "$JOB_COMPLETED" == "false" ]]; do
-                        
-                        echo "$COMMAND" > "$JOB_DIR/PENDINGREQUEST"
-                        textline 0 ""                    
-                        textbox 0 "${STYLE_QUEST}  EXECUTE ? ${NC} [Yes/Once/Skip/Always/Never/Replace/Followup/Quit]:" "> $COMMAND" "waiting" 
-                        
+
                         while [[ -z "$REPLY" ]]; do
                             # signal alive every 20 seconds second
                             count=$((count + 1))
