@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.2
+# @version   1.0.3
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -72,7 +72,7 @@ USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.2"
+BEE_VERSION="1.0.3"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -90,6 +90,7 @@ PARAM_JOB=""
 RUNNING_COMMAND=""
 CYCLE=1
 APPLY_SUDO="false"
+JOB_SESSION_FILE=""
 
 QUEEN_IP=""
 QUEEN_PORT=""
@@ -117,6 +118,9 @@ end_program() {
     if [[ -d "$JOB_DIR" ]]; then
         rm -f "$JOB_DIR/PID"
     fi
+    if [[ -f "$JOB_SESSION_FILE" ]]; then
+         rm -f "$JOB_SESSION_FILE"
+    fi   
     exit $ECODE
 }
 
@@ -477,7 +481,6 @@ if [[ "$DO_UPDATE" == "true" ]]; then
     cp -f detector.py /opt/honeybeebash/detector.py
     cp -f tools/* /opt/honeybeebash/tools/
 
-    # Compare config and warn to install ?
 
     VERSION_CHECK=$(bee --version 2>&1)
     if [[ $? -eq 0 && "$VERSION_CHECK" == *"HoneyBee Bash version"* ]]; then
@@ -784,6 +787,9 @@ textline 2 "Initializing Honeybee Bash agent... ${ORANGE}($(get_eyes "fly"))${NC
 
 # Model parameter init
 APPLIED_MODEL_MAX_CHARACTERS="100000" # Safety model min
+if [[ -n "$FILTER_TRIGGER" ]] && [[ "$FILTER_TRIGGER" -gt "0" ]] && [[ "$FILTER_TRIGGER" -lt "$APPLIED_MODEL_MAX_CHARACTERS" ]]; then
+    APPLIED_MODEL_MAX_CHARACTERS="$FILTER_TRIGGER"
+fi
 SELECTED_MODEL_MAX_CHARACTERS="$APPLIED_MODEL_MAX_CHARACTERS"
 SELECTED_MODEL_NAME="" 
 SELECTED_CONTEXT_SIZE=""
@@ -943,6 +949,23 @@ if [[ "$DO_ASKONCE" == "false" ]]; then
     fi
 fi
 
+# Verify and correct integrity of the default dataset
+prepare_dataset() {
+    local FILE="$1"
+    if [[ -z "$FILE" ]]; then
+        return 0
+    fi
+    set +e
+    count=$(grep -c "command,label,weight" "$FILE")
+    set -e
+    if [[ $count != 1 ]]; then
+        head -n 1 "$FILE" > "$FILE".tmp
+        tail -n +2 "$FILE" | sort | uniq >> "$FILE".tmp
+        mv "$FILE".tmp "$FILE"
+        textline 2 "Filtered global dataset duplicates in " "$FILE." "whatever" 
+    fi
+}
+
 # Create required workspace
 prepare_job_workspace() {
     textdebug 2 "Preparing workspace $JOB_DIR ${CYAN}($(get_eyes "whatever"))${NC}"
@@ -1024,16 +1047,7 @@ prepare_job_workspace() {
         if [[ ! -f "$FILE" ]]; then
             end_progran "The SciKit training set default-dataset.csv is missing." "Export or place it in $USER_CONFIG_DIR" "angry" 
         fi
-        # Verify and correct integrity of the default dataset
-        set +e
-        count=$(grep -c "command,label,weight" "$FILE")
-        set -e
-        if [[ $count != 1 ]]; then
-            head -n 1 "$FILE" > "$FILE".tmp
-            tail -n +2 "$FILE" | sort | uniq >> "$FILE".tmp
-            mv "$FILE".tmp "$FILE"
-            textline 2 "Filtered global dataset duplicates in " "$FILE." "whatever" 
-        fi
+        prepare_dataset $FILE
         textline 1 "Creating the default SciKit trainingset in" "$JOB_DIR/cache/dataset.csv. Review it to verify." "whatever" 
         cp "$USER_CONFIG_DIR/default-dataset.csv" $JOB_DIR/cache/dataset.csv
         chmod 660 $JOB_DIR/cache/dataset.csv
@@ -1044,16 +1058,7 @@ prepare_job_workspace() {
 
     # Verify and correct integrity of the created dataset
     textdebug 2 "Verify training dataset ${CYAN}($(get_eyes "whatever"))${NC}"
-    FILE="$JOB_DIR/cache/dataset.csv"
-    set +e
-    count=$(grep -c "command,label,weight" "$FILE")
-    set -e
-    if [[ $count != 1 ]]; then
-        head -n 1 "$FILE" > "$FILE".tmp
-        tail -n +2 "$FILE" | sort | uniq >> "$FILE".tmp
-        mv "$FILE".tmp "$FILE"
-        textline 2 "Filtered dataset duplicates" "$JOB_DIR/cache/dataset.csv." "whatever" 
-    fi
+    prepare_dataset "$JOB_DIR/cache/dataset.csv"
     DATASET=$(cat "$JOB_DIR/cache/dataset.csv")
     length=${#DATASET}
     if [ "$length" -lt "500" ]; then
@@ -1071,6 +1076,11 @@ prepare_job_workspace() {
 # Deleted the build data model for rebuild using dataset.csv
 remove_hive_model() {
     rm -f "$JOB_DIR/cache/"*.pkl
+
+    # Sort and remove duplicates
+    prepare_dataset "$JOB_DIR/cache/dataset.csv"
+    
+    DATASET=$(cat "$JOB_DIR/cache/dataset.csv")
 }
 
 
@@ -1813,6 +1823,13 @@ remote_googleai(){
             continue
         fi
 
+        read -t 0.1 -n 1 key_pressed || true
+        if [[ "${key_pressed:-}" == "q" ]]; then
+            textbox 0 "${CYAN}» Exitting by user request.${NC}" "happy"
+            bee_signal "$JOB_NAME" "DONE"
+            end_program
+        fi
+        
         # CASE: Unknown Fatal Error
         end_program 1 "${WHITE}Gemini API Fatal Error:${NC} $ERR_MSG"
     done
@@ -1880,11 +1897,16 @@ local_ollama(){
         CONTENT=$(echo "$RESPONSE" | jq -r '.response')
         if [[ -n "$CONTENT" ]]; then
             COMMAND=$(echo "$CONTENT" | jq -r '.command // empty')
-            EXPLANATION=$(echo "$CONTENT" | jq -r '.explanation // empty')
-            NEW_FACT=$(echo "$CONTENT" | jq -r '.new_fact // empty')
-            TASK_COMPLETED=$(echo "$CONTENT" | jq -r '.task_completed // empty')
-            GOAL_COMPLETED=$(echo "$CONTENT" | jq -r '.goal_completed // empty')
-            CONTEXT=$(echo "$RESPONSE" | jq -r '.content // empty')
+            if [[ -n "$CONTENT" ]]; then
+                EXPLANATION=$(echo "$CONTENT" | jq -r '.explanation // empty')
+                NEW_FACT=$(echo "$CONTENT" | jq -r '.new_fact // empty')
+                TASK_COMPLETED=$(echo "$CONTENT" | jq -r '.task_completed // empty')
+                GOAL_COMPLETED=$(echo "$CONTENT" | jq -r '.goal_completed // empty')
+                CONTEXT=$(echo "$RESPONSE" | jq -r '.content // empty')
+            else
+                # Missing response structure, store all as explanation
+                EXPLANATION="$CONTENT"
+            fi
         fi
         
         # Fix the Stats Math (using bc for decimals)
@@ -2399,6 +2421,9 @@ is_lan_address() {
 build_prompt() {
 
     # Parameter validation
+    if [[ -z "$APPLIED_MODEL_MAX_CHARACTERS" ]] || [[ "$APPLIED_MODEL_MAX_CHARACTERS" -lt "1" ]]; then
+        end_program 1 "Prompt builder is missing APPLIED_MODEL_MAX_CHARACTERS. Check the model '$MODEL' configuration."
+    fi
     if [[ -z "$SELECTED_CONTEXT_SIZE" ]] || [[ "$SELECTED_CONTEXT_SIZE" -lt "1" ]]; then
         end_program 1 "Prompt builder is missing SELECTED_CONTEXT_SIZE. Check the model '$MODEL' configuration."
     fi
@@ -2454,21 +2479,23 @@ $LAST_CONTEXT"
 
     # Evaluate whether a trim sequence is necessary
     if [[ "$DO_CAP_RESPONSE" == "true" ]] && [[ "$token_count_prompt" -gt "$DO_MAX_CAP_RESPONSE" ]]; then
+        textline 1 "${CYAN}» Prompt is too large ($token_count_prompt:$DO_MAX_CAP_RESPONSE tokens) for custom ctx. Minimizing structure.${NC}\n"
         SHORTEN="true"
     fi
     if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
+        textline 1 "${CYAN}» Prompt is too large ($token_count_prompt:$SELECTED_CONTEXT_SIZE tokens) for model ctx. Minimizing structure.${NC}\n"
         SHORTEN="true"
     fi
 
     char_count_prompt=${#PROMPT} 
     if [[ "$char_count_prompt" -gt "$APPLIED_MODEL_MAX_CHARACTERS" ]]; then
+        textline 1 "${CYAN}» Prompt is too large ($char_count_prompt:$APPLIED_MODEL_MAX_CHARACTERS chars) max characters. Minimizing structure.${NC}\n"
         SHORTEN="true"
     fi
 
     # STEP 1: Drop history modules and strip prompt payload down to core elements
     SHORTEN_TO_TOKENS=""
     if [[ "$SHORTEN" == "true" ]]; then
-        textline 1 "${CYAN}» Prompt is too large ($token_count_prompt tokens). Minimizing structure.${NC}\n"
         
         PROMPT="### SYSTEM INSTRUCTIONS
 $PROFILE
@@ -2502,17 +2529,18 @@ $RESULT"
         token_count_tmp_prompt=$(get_token_count "$TMP_PROMPT")
         
         if [[ "$DO_CAP_RESPONSE" == "true" ]] && [[ "$token_count_prompt" -gt "$DO_MAX_CAP_RESPONSE" ]]; then
+            textline 1 "${CYAN}» Prompt still too large ($token_count_prompt:$DO_MAX_CAP_RESPONSE tokens) for custom ctx. Trimming command result logs.${NC}\n"
             SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - token_count_tmp_prompt - 100 ))
         fi
         if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
             if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
+                textline 1 "${CYAN}» Prompt still too large ($token_count_prompt:$SELECTED_CONTEXT_SIZE tokens) for model ctx. Trimming command result logs.${NC}\n"
                 SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - token_count_tmp_prompt - 100 ))
             fi
         fi
 
         # STEP 2: If headroom is still negative, aggressively isolate and slice the $RESULT payload
         if [[ -n "$SHORTEN_TO_TOKENS" ]] && [[ "$SHORTEN_TO_TOKENS" -gt "0" ]]; then
-            textline 1 "${CYAN}» Prompt remains over capacity. Trimming command result logs.${NC}\n"
             TMP_RESULTS=$(trim_to_max_tokens "$RESULT" "$SHORTEN_TO_TOKENS")
             RESULT="$TMP_RESULTS
 [Result was too long and has been trimmed]"
@@ -2549,16 +2577,17 @@ $RESULT"
     SHORTEN_TO_TOKENS=""
 
     if [[ "$DO_CAP_RESPONSE" == "true" ]] && [[ "$token_count_prompt" -gt "$DO_MAX_CAP_RESPONSE" ]]; then
+        textline 1 "${CYAN}» Prompt safety cap triggered ($token_count_prompt:$DO_MAX_CAP_RESPONSE tokens) on custom ctx. Trimming prompt.${NC}\n"
         SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - 100 ))
     fi
     if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
         if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
+            textline 1 "${CYAN}» Prompt safety cap triggered ($token_count_prompt:$SELECTED_CONTEXT_SIZE tokens) on model ctx. Trimming prompt.${NC}\n"
             SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - 100 ))
         fi
     fi
 
     if [[ -n "$SHORTEN_TO_TOKENS" ]] && [[ "$SHORTEN_TO_TOKENS" -gt "0" ]]; then
-        textline 1 "${CYAN}» Prompt forced macro trim state ($token_count_prompt tokens). Finalizing.${NC}\n"
         TMP_PROMPT=$(trim_to_max_tokens "$PROMPT" "$SHORTEN_TO_TOKENS")
         PROMPT="$TMP_PROMPT
 [Prompt was too long and has been trimmed]"
@@ -2571,7 +2600,7 @@ $RESULT"
         # Dynamically set safety padding offset margin
         LOCAL_TRIGGER=$(( APPLIED_MODEL_MAX_CHARACTERS - 1000 ))
         if [[ "$LOCAL_TRIGGER" -gt "0" ]]; then
-            textline 1 "${CYAN}» Final economy limit tripped (${char_count_prompt} chars). Truncating prompt raw string.${NC}\n"
+            textline 1 "${CYAN}» Final economy limit tripped ($char_count_prompt:$APPLIED_MODEL_MAX_CHARACTERS chars). Truncating prompt raw string.${NC}\n"
             TMP_PROMPT="${PROMPT:0:$LOCAL_TRIGGER}"
             PROMPT="$TMP_PROMPT
 [Prompt string limit exceeded and hard truncated]"
@@ -2906,7 +2935,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                 elif [[ -n "$DISALLOWED_COMMAND" ]] && [[ "$MODE_AUTOMATIC" == "RESTRICTIVE" || "$DISALLOWED_BY" == "ForbiddenList" || "$DISALLOWED_BY" == "Run rules" ]]; then
                     textbox 1 "${CYAN}» Skipping due to rule by $DISALLOWED_BY${NC}" "$DISALLOWED_COMMAND" "whatever" 
                     echo "SKIPPING by rule of $DISALLOWED_BY" >> "$JOB_DIR/REASONING"
-                    INPUT="The following commandline was not allowed: $DISALLOWED_COMMAND"
+                    INPUT="The following commandline was not allowed on this system or for this job: $DISALLOWED_COMMAND"
                     COMMAND=""
                     DISALLOWED_BY=""
                     DISALLOWED_COMMAND=""
@@ -2934,7 +2963,6 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                             if [[ -f "$JOB_DIR/PENDINGUSERRESPONSE" ]]; then
                                 REPLY=$(cat "$JOB_DIR/PENDINGUSERRESPONSE")
                                 if [[ "$REPLY" == "y" ]] || [[ "$REPLY" == "o" ]]|| [[ "$REPLY" == "s" ]] || [[ "$REPLY" == "a" ]] || [[ "$REPLY" == "n" ]] || [[ "$REPLY" == "q" ]]; then
-                                    rm -f "$JOB_DIR/PENDINGREQUEST"
                                     rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
                                 else
                                     REPLY=""
@@ -2945,11 +2973,31 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                             # Short check for a keypress (timeout of 0.1s)
                             if [[ -z "$REPLY" ]]; then
                                 read -t 0.1 -n 1 -r key_pressed || true
+
+                                # Trap ANSI Escape characters (like Arrow Keys) and drop the trailing characters
+                                if [[ "$key_pressed" == $'\e' ]]; then
+                                    read -t 0.05 -n 2 -r garbage || true # Eat up the residual "[C" or "[A" sequence
+                                    key_pressed="" # Wipe it
+                                fi
+
                                 if [[ -n "${key_pressed:-}" ]]; then
                                     REPLY="$key_pressed"
                                     break
                                 fi
                             fi
+
+
+                            # Only leave this read loop if the key is a valid matching menu choice
+                            if [[ -n "$REPLY" ]]; then
+                                local_reply="${REPLY,,}"
+                                if [[ "$local_reply" =~ ^(y|o|s|a|n|r|f|q|z)$ ]]; then
+                                    break
+                                else
+                                    echo -e "${GOLD}⚠ Please press either of Yes/Once/Skip/Always/Never/Replace/Followup or 'q' to quit.${NC}"
+                                    REPLY=""
+                                fi
+                            fi
+
                             sleep 0.1
                         done
 
@@ -2958,6 +3006,9 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                         # ${REPLY,,} converts the input to lowercase automatically
                         if [[ -n "$REPLY" ]]; then
                             case "${REPLY,,}" in
+                                z) # Delete (stale) request (send by monitor)
+                                    rm -f "$JOB_DIR/PENDINGREQUEST"
+                                    break ;;
                                 o) # ONCE no training
                                     textbox 0 "${CYAN}» Manually allowed once${NC}" "$DISALLOWED_COMMAND" "happy" 
                                     break ;;
@@ -3104,14 +3155,14 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                     echo -e "\nGOAL: $GOAL" > "$JOB_DIR/FOCUS"
                     echo -e "\nPLANNING:\n$PLAN" >> "$JOB_DIR/FOCUS"
                     echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
-                    echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
                     echo -e "\nRESULT: $RESULT" >> "$JOB_DIR/FOCUS"
                     echo -e "\nNEXT: $COMMAND" >> "$JOB_DIR/FOCUS"
                     echo -e "\nEXPLANATION: $EXPLANATION" >> "$JOB_DIR/FOCUS"
 
-                    update_hud_json
                 else
                     # Process FollowUp
+                    echo $FOLLOW_UP >> "$JOB_DIR/ADDITIONAL"
+
                     echo "\$ $COMMAND" >> "$JOB_DIR/HISTORY"
                     echo "COMMAND CANCELED BY USER" >> "$JOB_DIR/HISTORY"
                     echo "REASON: $FOLLOW_UP" >> "$JOB_DIR/HISTORY"
@@ -3126,8 +3177,6 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                     echo "REASON: $FOLLOW_UP" >> "$JOB_DIR/JOURNAL"
                     echo " " >> "$JOB_DIR/JOURNAL"
 
-                    echo $FOLLOW_UP >> "$JOB_DIR/ADDITIONAL"
-
                     echo -e "\nGOAL: $GOAL" > "$JOB_DIR/FOCUS"
                     echo -e "\nPLANNING:\n$PLAN" >> "$JOB_DIR/FOCUS"
                     echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
@@ -3138,9 +3187,33 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
 
                     INPUT="$FOLLOW_UP"
                     echo -e "$INPUT\n"
-
-                    update_hud_json
                 fi
+
+            else
+                # Process NoCommand
+                echo "\$ No command suggested" >> "$JOB_DIR/HISTORY"
+                echo "$RESULT" >> "$JOB_DIR/HISTORY"
+                echo " " >> "$JOB_DIR/HISTORY"
+
+                echo "INPUT: $INPUT" >> "$JOB_DIR/JOURNAL"
+                echo "PROMPT: $PROMPT" >> "$JOB_DIR/JOURNAL"
+                echo "RESPONSE: $RESPONSE" >> "$JOB_DIR/JOURNAL"
+                echo "NEXT COMMAND: $COMMAND" >> "$JOB_DIR/JOURNAL"
+                echo "EXPLANATION: $EXPLANATION" >> "$JOB_DIR/JOURNAL"
+                echo "NO COMMAND SUGGESTED" >> "$JOB_DIR/JOURNAL"
+                echo " " >> "$JOB_DIR/JOURNAL"
+
+                echo -e "\nGOAL: $GOAL" > "$JOB_DIR/FOCUS"
+                echo -e "\nPLANNING:\n$PLAN" >> "$JOB_DIR/FOCUS"
+                echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
+                echo -e "\nRESULT: $RESULT" >> "$JOB_DIR/FOCUS"
+                echo -e "\nNEXT: No Next command suggested" >> "$JOB_DIR/FOCUS"
+                echo -e "\nEXPLANATION: $EXPLANATION" >> "$JOB_DIR/FOCUS"
+
+                echo "$EXPLANATION" > "$JOB_DIR/EXPLANATION"
+
+                INPUT="$FOLLOW_UP"
+                echo -e "$INPUT\n"
             fi
 
             echo "" > "$JOB_DIR/NEXTACTION"
@@ -3177,12 +3250,12 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
             echo -e "\nPLANNING:\n$EXPLANATION" >> "$JOB_DIR/FOCUS"
             echo -e "\nINPUT: $INPUT" >> "$JOB_DIR/FOCUS"
             echo -e "\nNEXT: $INPUT\n" >> "$JOB_DIR/FOCUS"
-            
-            update_hud_json
         else
             textbox 1 "${CYAN}» No PLAN received. Trying again.${NC}" "annoyed"
         fi
     fi
+            
+    update_hud_json
 
     if [[ -n "$DO_BEE_DELAY" ]]; then
         sleep $DO_BEE_DELAY
@@ -3191,3 +3264,4 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
     fi
 done
 
+end_program
