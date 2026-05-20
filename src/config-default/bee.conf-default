@@ -9,7 +9,7 @@ TIMEOUT="60"                # General network timeout
 BEE_DELAY=1                 # Seconds pause between LLM requests
 MAX_TIMEOUT="600"           # Absolute API timeout
 MAX_RATE_LIMIT_RETRIES=30   # Retries maximum for remote API
-HISTORY_DEPTH=100           # Scope depth, counted in Lines
+HISTORY_DEPTH=10000           # Scope depth, counted in Lines
 MONITOR_INTERVAL=1          # Speed of monitor updates in seconds
 PYTHON_CMD="/opt/honeybeebash/backpack/bin/python3"
 

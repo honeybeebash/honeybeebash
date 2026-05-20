@@ -13,7 +13,7 @@
 # PROJECT:   MONITOR.SH (The HoneyBee Bash Bee Monitor)
 # PURPOSE:   Monitor and control Bee jobs
 # ------------------------------------------------------------------------------
-# @version   1.0.2
+# @version   1.0.3
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -509,7 +509,7 @@ statusbar() {
     if [[ -f "$WSP/PENDINGREQUEST" ]] && [[ ! -f "$WSP/PENDINGUSERRESPONSE" ]]; then
         PENDING=$(cat "$WSP/PENDINGREQUEST")
         # Flash the background to grab attention
-        echo -ne "${RED}${STYLE_QUEST} ⚠ EXECUTE? :${NC} ${PENDING:0:50}.. ${GOLD}[Y/O/S/A/N/E]?${NC}"
+        echo -ne "${RED}${STYLE_QUEST} ⚠ EXECUTE? :${NC} ${PENDING:0:50}.. ${GOLD}[Y/O/S/A/N/E/Z]?${NC}"
         return
     fi
 
@@ -1437,7 +1437,7 @@ help() {
     echo " X - End the selected Bee job"
     echo " L - Launch a Bee script --parameter \"prompt\" JOB_NAME "
     echo ""
-    echo " Reserved for user response: Yes/Once/Skip/Always/Never/End (y/o/s/a/n/e)"
+    echo " Reserved for user response: Yes/Once/Skip/Always/Never/End/Zap (y/o/s/a/n/e/z)"
     echo ""
     echo " Format PROMPT: Quoted string any length."
     echo " Format JOB names: one string, alfanumeric and dash(-) characters"
@@ -1624,6 +1624,8 @@ while true; do
         key+="$rest"
     fi
 
+
+    key="${key,,}"
     case "$key" in
         # --- QUIT MONITOR --- 
         [qQ])
@@ -1633,13 +1635,20 @@ while true; do
             exit 0 ;;
 
         # --- REMOTE ANSWSER (Remote answering Bee Execution request) --- 
-        [yYoOsSnNaAeE])
+        [yYoOsSnNaAeEzZ])
             # If Bee has a Execute request
             if [[ -f $WSP/PENDINGREQUEST ]]; then 
-                if [[ "$key" == "e" ]]; then
+                if [[ "$key" == "z" ]]; then
+                    rm -f "$WSP/PENDINGREQUEST"
+                    rm -f "$WSP/PENDINGUSERRESPONSE" 
+
+                elif [[ "$key" == "e" ]]; then
                     key="q"
+                    echo "$key" > "$WSP/PENDINGUSERRESPONSE"
+
+                else
+                    echo "$key" > "$WSP/PENDINGUSERRESPONSE"
                 fi
-                echo "$key" > "$WSP/PENDINGUSERRESPONSE"
             fi
             ;;
 

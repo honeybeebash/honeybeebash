@@ -192,11 +192,20 @@ chmod 750 "$BACKPACK_DIR"
 # Copy application
 echo "$ICON_DIR Copying files..."
 
-cp -rf models "$USER_LOCAL_DIR/"
+# Copy model files if 
+mkdir -p "$USER_LOCAL_DIR/models"
 chown $USER:$GROUP "$USER_LOCAL_DIR/models"
-chown $USER:$GROUP "$USER_LOCAL_DIR/models/"*
 chmod 750 "$USER_LOCAL_DIR/models"
-chmod 640 "$USER_LOCAL_DIR/models/"*
+
+for src_item in "models/"*; do
+    filename=$(basename "$src_item")
+    dest_item="$USER_LOCAL_DIR/models/$filename"
+    if [[ "$filename" == *".py"* ]] || [[ ! -e "$dest_item" ]]; then
+        cp -f "$src_item" "$dest_item"
+        chown -R $USER:$GROUP "$dest_item"
+        chmod 640 "$dest_item" 
+    fi
+done
 
 
 # Copying default run config
@@ -547,30 +556,24 @@ user_key=${user_key:-}
 
 
 # --- Append new keys to old configs ---
-MODEL_DIR="$HOME/.local/share/honeybeebash/models"
-DEFAULT_VAR='SELECTED_MODEL_MAX_CHARACTERS="4000000"'
+MODEL_DIR="$USER_LOCAL_DIR/models"
+DEFAULT_KEY1='SELECTED_MODEL_MAX_CHARACTERS'
+DEFAULT_VAR1='SELECTED_MODEL_MAX_CHARACTERS="4000000"'
 
-# Check if the directory actually exists and contains .conf files
 if [ -d "$MODEL_DIR" ] && ls "$MODEL_DIR"/*.conf &>/dev/null; then
     for MODEL_FILE in "$MODEL_DIR"/*.conf; do
-        # Extract just the filename for cleaner terminal reporting
         filename=$(basename "$MODEL_FILE")
 
-        # Check if the variable name exists in the specific file (ignoring comments)
-        if ! grep -q "^[[:space:]]*SELECTED_MODEL_MAX_CHARACTERS=" "$MODEL_FILE" 2>/dev/null; then
-            echo "Adding default max characters to: $filename"
-            
-            # Ensure the file ends with a newline before appending
+        if ! grep -q "^[[:space:]]*$DEFAULT_KEY1=" "$MODEL_FILE" 2>/dev/null; then
+            echo "Adding key $DEFAULT_KEY1 to : $filename"
             sed -i -e '$a\' "$MODEL_FILE" 2>/dev/null || echo "" >> "$MODEL_FILE"
-            
-            # Append the default variable string
-            echo "$DEFAULT_VAR" >> "$MODEL_FILE"
+            echo "$DEFAULT_VAR1" >> "$MODEL_FILE"
         else
             echo "Skipping $filename: Variable already exists."
         fi
     done
 else
-    echo "Error: Directory does not exist or no .conf files were found in $MODEL_DIR"
+    echo "Error: Model directory does not exist or no .conf files were found in $MODEL_DIR"
 fi
 
 
