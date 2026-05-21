@@ -1181,6 +1181,9 @@ rotate_journal() {
     shopt -u nullglob
     n=$((n + 1))
     mv -- "$jpath" "$dir/$base.$n"
+    if [[ "$USER" == "root" ]]; then
+        chown -R $REAL_USER:$REAL_GROUP "$JOB_SESSION_FILE"
+    fi
 }
 
 # Reusable cleanup function
@@ -1218,7 +1221,7 @@ cleanup_workspace(){
     rm -rf "$JOB_DIR/memory/"*
     rm -rf "$JOB_DIR/tmp/"*
     rotate_journal
-    > "$JOB_DIR/JOURNAL"
+    clear_workspace_file "$JOB_DIR/JOURNAL"
     beelog "${CYAN}» Bee Logs purged ${NC}"
     remove_hive_model
 }
@@ -2782,7 +2785,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
     
     # Assure that input ends with a dot
     TRIMMED="${INPUT%"${INPUT##*[![:space:]]}"}"
-    if [[ "$TRIMMED" != *. ]]; then
+    if [[ "$TRIMMED" != *. ]] && [[ "$TRIMMED" != *? ]]; then
         INPUT="$INPUT."
     fi
     
