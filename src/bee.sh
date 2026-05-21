@@ -201,6 +201,7 @@ EXPORT_API_KEY=""
 EXPORT_API_USERNAME=""
 EXPORT_TEXT=""
 IMPORT_SET=""
+TARGET_JOB=""
 DROP_JOB=""
 DO_BEE_DELAY=""
 DO_CAP_RESPONSE="false"
@@ -2948,7 +2949,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                     textline 0 ""                    
                     textbox 0 "${STYLE_QUEST}  EXECUTE ? ${NC} [Yes/Once/Skip/Always/Never/Replace/Followup/Quit]:" "> $COMMAND" "waiting" 
                     textline 0 ""  
-                    
+
                     count=101
                     REPLY=""
                     while [[ "$JOB_COMPLETED" == "false" ]]; do
