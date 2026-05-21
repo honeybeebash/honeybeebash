@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.3
+# @version   1.0.4
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -72,7 +72,7 @@ USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.3"
+BEE_VERSION="1.0.4"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -201,6 +201,7 @@ EXPORT_API_KEY=""
 EXPORT_API_USERNAME=""
 EXPORT_TEXT=""
 IMPORT_SET=""
+TARGET_JOB=""
 DROP_JOB=""
 DO_BEE_DELAY=""
 DO_CAP_RESPONSE="false"
@@ -2943,14 +2944,16 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                     rm -f "$JOB_DIR/PENDINGUSERRESPONSE"
 
                 else
+                        
+                    echo "$COMMAND" > "$JOB_DIR/PENDINGREQUEST"
+                    textline 0 ""                    
+                    textbox 0 "${STYLE_QUEST}  EXECUTE ? ${NC} [Yes/Once/Skip/Always/Never/Replace/Followup/Quit]:" "> $COMMAND" "waiting" 
+                    textline 0 ""  
+
                     count=101
                     REPLY=""
                     while [[ "$JOB_COMPLETED" == "false" ]]; do
-                        
-                        echo "$COMMAND" > "$JOB_DIR/PENDINGREQUEST"
-                        textline 0 ""                    
-                        textbox 0 "${STYLE_QUEST}  EXECUTE ? ${NC} [Yes/Once/Skip/Always/Never/Replace/Followup/Quit]:" "> $COMMAND" "waiting" 
-                        
+
                         while [[ -z "$REPLY" ]]; do
                             # signal alive every 20 seconds second
                             count=$((count + 1))
