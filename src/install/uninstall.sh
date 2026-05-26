@@ -45,16 +45,11 @@ rm -f /usr/local/bin/monitor
 echo "$ICON_DIR Removing System Files (/opt and /etc)..."
 rm -rf "$BASE_DIR"
 
-# 3. Remove User Data
-echo "$ICON_DIR Removing User Data and Configs..."
-rm -rf "$USER_CONFIG_DIR"
-rm -rf "$USER_LOCAL_DIR"
-
-# 4. Optional: Python Cleanup
+# 3. Optional: Python Cleanup
 # Note: This doesn't remove global pip packages (like google-genai) 
 # because other apps might use them.
 
-# 5. SciKit cleanup
+# 4. SciKit cleanup
 # --- Path to the user's active config ---
 # Ensure this matches the variables defined earlier in your script
 if [[ -f "$USER_CONFIG_DIR/bee.conf" ]]; then
@@ -72,6 +67,12 @@ if [[ -f "$USER_CONFIG_DIR/bee.conf" ]]; then
 else
     echo "$ICON_INFO  No bee.conf found at $USER_CONFIG_DIR/"
 fi
+
+# 6. Remove User Data
+echo "$ICON_DIR Removing User Data and Configs..."
+rm -rf "$USER_CONFIG_DIR"
+rm -rf "$USER_LOCAL_DIR"
+
 
 # --- Final Farewell ---
 echo -e "\n"

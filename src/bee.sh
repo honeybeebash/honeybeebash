@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.4
+# @version   1.0.5
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -72,7 +72,7 @@ USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.4"
+BEE_VERSION="1.0.5"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -91,6 +91,7 @@ RUNNING_COMMAND=""
 CYCLE=1
 APPLY_SUDO="false"
 JOB_SESSION_FILE=""
+ENABLE_SCIKIT="false"
 
 QUEEN_IP=""
 QUEEN_PORT=""
@@ -142,9 +143,11 @@ CORE COMMAND OPTIONS:
   --version               Show the version number of Bee
   --timeout=n             Override default LLM timeout (seconds). For testing and tuning.
   --delay=n               Set the amount of seconds to wait between LLM requests.
+  --mode={mode}           Only for this job run either of RESTRICTIVE, PERMISSIVE, ADAPTIVE or MANUAL
   --verbose=0-2           Show less output (0) or more (2) [CONFLICT] [WARNING] [NOTICE]
   --silent                Show no output  
   --debug=0-3             Set debug level (0 none - 3 full)  
+  --venv                  Prints out the command to enter the python virtual environment
   --update                Obtains the latest version and installs the scripts only for immediate use
   --exit                  Exit after processing parameter commands
 
@@ -218,6 +221,7 @@ DO_CLEANUP="false"
 DO_CLEARRULES="false"
 DO_CLONE="false"
 DO_ASKONCE="false"
+DO_MODE=""
 DO_EXIT="false"
 LOOSE_COUNT=0
 while [[ $# -gt 0 ]]; do
@@ -226,13 +230,26 @@ while [[ $# -gt 0 ]]; do
         ?|--help)    show_help; end_program ;;
         --version)   echo "HoneyBee Bash version $BEE_VERSION"; end_program 0  ;;
         --test)      TEST_MODE="true";  shift  ;;
+        --mode=*)    DO_MODE="${1#*=}";  shift 1 ;;
         --verbose=*) VERBOSE_LEVEL="${1#*=}";  shift 1 ;;
-        --silent)    DO_SILENT="true" shift 1 ;; 
+        --silent)    DO_SILENT="true"; shift 1 ;; 
         --debug=*)
             DEBUG_LEVEL="${1#*=}"
             DEBUG_LEVEL="${DEBUG_LEVEL//[!0-9]/}"
             DEBUG_LEVEL="${DEBUG_LEVEL:-0}"
             shift 1
+            ;;
+        --venv)
+            BACKPACK_DIR="/opt/honeybeebash/backpack"
+            ACTIVATE_PATH=$(find "$BACKPACK_DIR" -name "activate" -path "*/bin/*" | head -n 1)
+            if [[ -f "$ACTIVATE_PATH" ]]; then
+                echo -e "\nTo enter the Virtual Environment and use its tools, run:\nsource $ACTIVATE_PATH"
+                echo -e "\n(Type 'deactivate' when you want to leave the Venv)\n"
+            else
+                echo -e "\n[ERROR]Could not find the Virtual Environment (activation script) in $BACKPACK_DIR."
+                echo "Is the Backpack Venv properly installed ?"
+            fi 
+            end_program
             ;;
         --timeout=*) TIMEOUT="${1#*=}"; shift 1  ;;
         --delay=*) DO_BEE_DELAY="${1#*=}"; shift 1  ;;
@@ -243,6 +260,7 @@ while [[ $# -gt 0 ]]; do
             ;;
 
         --update) DO_UPDATE="true"; shift 1 ;;
+        --updateedge) DO_UPDATE="edge"; shift 1 ;;
 
         --ask) DO_ASKONCE="true"; shift 1  ;;    
 
@@ -450,25 +468,32 @@ textdebug() {
 }
 
 # --- Early catch for Bee update
-if [[ "$DO_UPDATE" == "true" ]]; then
-    textdebug 0 "Updating Bee ..."
-    DOWNLOAD="https://honeybeebash.com/downloads/honeybeebash.zip"
+if [[ "$DO_UPDATE" != "false" ]]; then
+    if [[ "$DO_UPDATE" == "edge" ]]; then
+        DLFILE="edge.zip"
+        textdebug 0 "Updating Bee-edge ..."
+    else
+        DLFILE="honeybeebash.zip"
+        textdebug 0 "Updating Bee ..."
+    fi
+
+    DOWNLOAD="https://honeybeebash.com/downloads/$DLFILE"
 
     cd $HOME
-    if [[ -f "honeybeebash.zip" ]]; then
-        rm -f honeybeebash.zip
+    if [[ -f "$DLFILE" ]]; then
+        rm -f "$DLFILE"
     fi
 
     # Download zip
     textdebug 2 "Downloading ZIP ..."
-    wget $DOWNLOAD
-    if [[ ! -f "honeybeebash.zip" ]]; then
+    wget "$DOWNLOAD"
+    if [[ ! -f "$DLFILE" ]]; then
         end_program 1 "$ICON_FAIL Could not download from $DOWNLOAD"
     fi
 
     # Unpack
     textdebug 2 "Unpacking ..."
-    unzip -o honeybeebash.zip
+    unzip -o "$DLFILE"
     if [[ ! -f "honeybeebash/src/bee.sh" ]]; then
         end_program 1 "$ICON_FAIL Could not unpack the download to $HOME"
     fi
@@ -496,24 +521,24 @@ fi
 
 # --- Detect System Python (The Foundation) ---
 textdebug 2 "Detecting System Python3..."
-SYSTEM_PYTHON=$(which python3)
+SYSTEM_PYTHON=$(command -v python3)
 
 if [[ -z "$SYSTEM_PYTHON" ]]; then
-    end_program 1 "$ICON_FAIL Python3 not found on system. Install it first." 
+    end_program 1 "Python3 not found on system. Install it first." 
 fi
 
 # --- Branching Logic (Legacy vs Backpack) ---
 if [[ "$LEGACY_MODE" == "true" ]]; then
-    textdebug 2 "$ICON_PACKAGE Legacy Mode Active: Using Global Environment."
+    textdebug 2 "Legacy Mode Active: Using Global Environment."
     PYTHON_BIN="$SYSTEM_PYTHON"
     
     # Locate Global Pip
-    PIP_BIN=$(which pip3)
+    PIP_BIN=$(command -v pip3)
     if [[ -z "$PIP_BIN" ]]; then
         if $SYSTEM_PYTHON -m pip --version &> /dev/null; then
             PIP_BIN="$SYSTEM_PYTHON -m pip"
         else
-            end_program 1 "$ICON_FAIL Legacy Pip not found. Try: sudo apt install python3-pip"
+            end_program 1 "Legacy Pip not found. Try: sudo apt install python3-pip"
         fi
     fi
 
@@ -525,7 +550,7 @@ else
 fi
 # --- Final Validation ---
 if [[ ! -x $(echo $PYTHON_BIN | cut -d' ' -f1) ]]; then
-    end_program 1 "$ICON_FAIL Final Python binary not executable: $PYTHON_BIN"
+    end_program 1 "Final Python binary not executable: $PYTHON_BIN"
 fi
 
 textdebug 0 "Active Python: $PYTHON_BIN"
@@ -542,6 +567,13 @@ if [[ -f "$USER_CONFIG_DIR/bee.conf" ]]; then
     DEFAULT_CONFIG_FILE="$USER_CONFIG_DIR/bee.conf-default"
     source "$CONFIG_FILE"
     APPLIED_MODEL_MAX_CHARACTERS="$FILTER_TRIGGER" # Legacy support
+    if [[ -n "$DO_MODE" ]]; then
+        DO_MODE="${DO_MODE^^}"
+        if [[ "$DO_MODE" == "RETRICTIVE" || "$DO_MODE" == "PERMISSIVE" || "$DO_MODE" == "ADAPTIVE" || "$DO_MODE" == "MANUAL" ]]; then            
+            textdebug 0 "Running in custom automation mode : $DO_MODE"
+            MODE_AUTOMATION="$DO_MODE"
+        fi
+    fi
 else
     end_program 1 "Missing config file $USER_CONFIG_DIR/bee.conf"
 fi
@@ -780,6 +812,52 @@ texterror() {
 }
 
 
+get_lan_ip() {
+    # 1. Try modern 'ip' command (Standard on almost all modern Linux distros)
+    if command -v ip >/dev/null 2>&1; then
+        ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}'
+        return
+    fi
+
+    # 2. Try classic 'hostname' command (Common on Debian/Ubuntu/RedHat)
+    if command -v hostname >/dev/null 2>&1; then
+        hostname -I | awk '{print $1}'
+        return
+    fi
+
+    # 3. Try legacy 'ifconfig' (Common on older systems/CentOS 6)
+    if command -v ifconfig >/dev/null 2>&1; then
+        ifconfig | awk '/inet / && !/127.0.0.1/ {print $2; exit}' | sed 's/addr://'
+        return
+    fi
+
+    # 4. Try Python (Common in minimal containers running app stacks)
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('1.1.1.1', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null
+        return
+    fi
+
+    # 5. The Ultimate Zero-Dependency Fallback (For stripped Docker containers)
+    # Reads the hex routing table, converts the default gateway interface's hex IP to decimals.
+    # This structure (/proc/net/route) hasn't changed fundamentally in decades.
+    if [ -f /proc/net/route ]; then
+        local hex_ip
+        hex_ip=$(awk 'NR==2 {print $3}' /proc/net/route)
+        if [ -not -z "$hex_ip" ] && [ "$hex_ip" != "00000000" ]; then
+            # Convert 8-char Hex string (little endian) to IP format
+            printf "%d.%d.%d.%d\n" \
+                "$((16#${hex_ip:6:2}))" \
+                "$((16#${hex_ip:4:2}))" \
+                "$((16#${hex_ip:2:2}))" \
+                "$((16#${hex_ip:0:2}))"
+            return
+        fi
+    fi
+    
+    # If all else fails
+    echo "127.0.0.1"
+}
+
 # Internal variables
 
 textdebug 0 "Initializing..."
@@ -798,10 +876,11 @@ SELECTED_MODEL_RETRY_TIMEOUT=5
 SELECTED_MODEL_BASE_URL=""
 GEMINI_API_KEY=""
 USE_ML_GUARD="false"
+ML_GUARD="unknown"
 
 # System and environment
 LINEAGE=$(grep -iP '^(ID_LIKE|ID)=' /etc/os-release | cut -d= -f2 | tr -d '"' | head -n 1)  # Linux Family
-HOSTNAME=$(hostname)
+HOSTNAME=$(cat /etc/hostname)
 SYSTEM=$(uname -a)
 OS=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
 OS=${OS// /_}
@@ -810,10 +889,7 @@ PATH_ENV=$PATH
 SHELL_TYPE=$SHELL
 IS_SUDO=$(sudo -n true 2>/dev/null && echo "YES" || echo "NO")
 WAN_IP=$(curl -s ifconfig.me)
-LAN_IP=$(ip route get 8.8.8.8 2>/dev/null | grep -oP 'src \K\S+')
-if [[ -z "$LAN_IP" ]]; then
-    LAN_IP=$(hostname -I | awk '{print $1}')
-fi
+LAN_IP=$(get_lan_ip)
 
 # Search for primary lineage keywords first
 OS_FAMILY=$(grep -Ei "debian|fedora|arch|suse" /etc/os-release | head -n 1 | grep -Eoi "debian|fedora|arch|suse" | tr '[:upper:]' '[:lower:]')
@@ -884,7 +960,7 @@ if [[ "$ENABLE_SCIKIT" == "true" ]]; then
     py_rc=$?
     set -e
     textdebug 0 "SciKit integrity : Result of import check=$PY_CHECK"
-    if [ "$py_rc" -eq 0 ]; then
+    if [ "$py_rc" -eq "0" ]; then
         if [[ "$PY_CHECK" == *"No module named"* ]]; then
             end_program 1 "SciKit integrity : Missing Panda or SKLearn."
         fi
@@ -923,10 +999,10 @@ elif [[ "$DO_SILENT" == "false" ]]; then
     echo -e "     /   \ (0 0) /   \    | ${WHITE}GUARD: $ML_GUARD${GOLD} "
     echo -e "    |  M  |  X  |  M  |   | ${WHITE}MODEL: $LLM_MODEL${GOLD}   "
     echo -e "    |_____/ @@@ \_____|   | ${WHITE}MODE: $MODE_AUTOMATIC${GOLD}"
-    echo -e "           @@@@@          |__________________|"
-    echo -e "            @@@           | ${WHITE}SYSTEM // NETWORK${GOLD}|"
-    echo -e "             V            | ${WHITE}SCANS + ++ACTION ${GOLD}|"
-    echo -e "                          | ${WHITE}SCIKIT # HEURISTICS${NC}${GOLD}|"
+    echo -e "           @@@@@          |__________________"
+    echo -e "            @@@           | ${WHITE}SYSTEM // NETWORK${GOLD}"
+    echo -e "             V            | ${WHITE}SCANS + ++ACTION ${GOLD}"
+    echo -e "                          | ${WHITE}SCIKIT # HEURISTICS${NC}${GOLD}"
     echo -e "${GOLD}=============================================${NC}"
     echo -e "${NC}"
 fi
@@ -1181,6 +1257,9 @@ rotate_journal() {
     shopt -u nullglob
     n=$((n + 1))
     mv -- "$jpath" "$dir/$base.$n"
+    if [[ "$USER" == "root" ]] && [[ -f "$JOB_SESSION_FILE" ]]; then
+        chown -R $REAL_USER:$REAL_GROUP "$JOB_SESSION_FILE"
+    fi
 }
 
 # Reusable cleanup function
@@ -1218,7 +1297,7 @@ cleanup_workspace(){
     rm -rf "$JOB_DIR/memory/"*
     rm -rf "$JOB_DIR/tmp/"*
     rotate_journal
-    > "$JOB_DIR/JOURNAL"
+    clear_workspace_file "$JOB_DIR/JOURNAL"
     beelog "${CYAN}» Bee Logs purged ${NC}"
     remove_hive_model
 }
@@ -2234,21 +2313,55 @@ securitycheck() {
     # --- GLOBAL WHITELIST LAYER ---
     textdebug 2 "DETECTOR: Run GLOBAL rules RUN_ALWAYS"
     if [[ -f "$USER_CONFIG_DIR/RUN_ALWAYS" ]]; then
-        if sed 's/[[:space:]]*$//' "$USER_CONFIG_DIR/RUN_ALWAYS" | grep -xFq "$CLEAN_CMD"; then
-            textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Trusted global command detected.${NC}" "happy"
-            AUTO_FIX_ENABLED="true"
-            return 0
-        fi
+        # 1. Clean the user command into a sorted list of unique words
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+
+        while IFS= read -r trusted_line || [[ -n "$trusted_line" ]]; do
+            [[ -z "$trusted_line" || "$trusted_line" =~ ^# ]] && continue
+
+            # 2. Clean the whitelist entry into a sorted list of unique words
+            TRUSTED_WORDS=$(echo "$trusted_line" | tr ' ' '\n' | sort -u)
+
+            # 3. Use 'comm' to find if USER_WORDS contains anything NOT in TRUSTED_WORDS
+            # If the output is empty, it means the user's command is a "safe subset"
+            EXTRA_STUFF=$(comm -23 <(echo "$USER_WORDS") <(echo "$TRUSTED_WORDS"))
+
+            if [[ -z "$EXTRA_STUFF" ]]; then
+                textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Valid permutation of trusted global command.${NC}" "happy"
+                AUTO_FIX_ENABLED="true"
+                return 0
+            fi
+        done < "$USER_CONFIG_DIR/RUN_ALWAYS"
     fi
+
     # --- GLOBAL BLACKLIST LAYER ---
     textdebug 2 "DETECTOR: Run GLOBAL rules RUN_NEVER"
     if [[ -f "$USER_CONFIG_DIR/RUN_NEVER" ]]; then
-        if sed 's/[[:space:]]*$//' "$USER_CONFIG_DIR/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
-            textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by global policy.${NC}" "dead"
-            DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND="$COMMAND"
-            return 0
-        fi
+        # 1. Prepare the user's command words (sorted and unique)
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+            # 2. Prepare the forbidden command words (sorted and unique)
+            FORBIDDEN_WORDS=$(echo "$line" | tr ' ' '\n' | sort -u)
+
+            # 3. Check if the forbidden signature is entirely contained within the user's command.
+            # 'comm -23' shows what's in FORBIDDEN but NOT in USER.
+            # If the result is empty, the user has provided all the "ingredients" of a forbidden command.
+            MISSING_FORBIDDEN_PIECES=$(comm -23 <(echo "$FORBIDDEN_WORDS") <(echo "$USER_WORDS"))
+
+            if [[ -z "$MISSING_FORBIDDEN_PIECES" ]]; then
+                textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: Forbidden global command signature detected.${NC}" "dead"
+                
+                # Set the variables for your error handling/logging
+                DISALLOWED_BY="Run rules (Blacklist)"
+                DISALLOWED_COMMAND="$CLEAN_CMD"
+                
+                # return 0 to prevent 'set -e' from killing the script instantly
+                return 0
+            fi
+        done < "$USER_CONFIG_DIR/RUN_NEVER"
     fi
     # --- GLOBAL REPLACEMENT LAYER (Normalization) ---
     textdebug 2 "DETECTOR: Run GLOBAL rules RUN_REPLACE"
@@ -2266,7 +2379,7 @@ securitycheck() {
             # Check if the command line contains tokens that match the forbidden strings
             if contains_forbidden_token "$NORMALIZED" "$FORBIDDEN_STR"; then
                 textline 1 "Access Denied: Found forbidden string '$FORBIDDEN_STR'"
-                beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden string detected '$FORBIDDEN_STR'.${NC}"
+                beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden job string detected '$FORBIDDEN_STR'.${NC}"
                 DISALLOWED_BY="ForbiddenList"
                 DISALLOWED_COMMAND="$COMMAND"
                 return 0
@@ -2275,34 +2388,54 @@ securitycheck() {
     fi
     # --- JOB WHITELIST LAYER ---
     if [[ -f "$JOB_DIR/config/RUN_ALWAYS" ]]; then
-        if sed 's/[[:space:]]*$//' "$JOB_DIR/config/RUN_ALWAYS" | grep -xFq "$CLEAN_CMD"; then
-            textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Trusted job command detected.${NC}" "happy"
-            AUTO_FIX_ENABLED="true"
-            return 0
-        fi
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+        while IFS= read -r trusted_line || [[ -n "$trusted_line" ]]; do
+            [[ -z "$trusted_line" || "$trusted_line" =~ ^# ]] && continue
+            TRUSTED_WORDS=$(echo "$trusted_line" | tr ' ' '\n' | sort -u)
+            EXTRA_STUFF=$(comm -23 <(echo "$USER_WORDS") <(echo "$TRUSTED_WORDS"))
+            if [[ -z "$EXTRA_STUFF" ]]; then
+                textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Valid permutation of trusted job command.${NC}" "happy"
+                AUTO_FIX_ENABLED="true"
+                return 0
+            fi
+        done < "$JOB_DIR/config/RUN_ALWAYS"
     fi
     # --- JOB BLACKLIST LAYER ---
     if [[ -f "$JOB_DIR/config/RUN_NEVER" ]]; then
-        if sed 's/[[:space:]]*$//' "$JOB_DIR/config/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
-            textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by job policy.${NC}" "dead"
-            DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND="$COMMAND"
-            return 0
-        fi
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" || "$line" =~ ^# ]] && continue
+            FORBIDDEN_WORDS=$(echo "$line" | tr ' ' '\n' | sort -u)
+            MISSING_FORBIDDEN_PIECES=$(comm -23 <(echo "$FORBIDDEN_WORDS") <(echo "$USER_WORDS"))
+            if [[ -z "$MISSING_FORBIDDEN_PIECES" ]]; then
+                textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: Forbidden job command signature detected.${NC}" "dead"
+                DISALLOWED_BY="Run rules (Blacklist)"
+                DISALLOWED_COMMAND="$CLEAN_CMD"
+                return 0
+            fi
+        done < "$JOB_DIR/config/RUN_NEVER"
     fi
     # --- JOB REPLACEMENT LAYER (Normalization) ---
     if [[ -f "$JOB_DIR/config/RUN_REPLACE" ]]; then
         replace_commands "$JOB_DIR/config/RUN_REPLACE"
     fi
 
+    # Testmode for INTERACTIVE mode
+    if [ $MODE_AUTOMATIC == "PERMISSIVE" ]; then
+        textbox 2 "${GREEN}$ICON_SUCCES Permissive mode: Allowing command.${NC}" "happy"
+        AUTO_FIX_ENABLED="true"
+        return 0
+    fi
+
+
     # Without a detector only apply RUN rules
     textdebug 0 "DETECTOR: Probe SciKit"
     if [[ "$ENABLE_SCIKIT" == "false" ]] || [[ "$USE_ML_GUARD" == "false" ]]; then
-        if [ $MODE_AUTOMATIC == "PERMISSIVE" ]; then
-            textbox 1 "${RED}$ICON_SUCCES WARNING: Permissive mode. No rule found for command${NC}" "angry"
+        if [ $MODE_AUTOMATIC == "ADAPTIVE" ]; then
+            textbox 1 "${RED}$ICON_SUCCES WARNING: Adaptive mode without SciKit. Allowing command.${NC}" "happy"
             return 0
         elif [ $MODE_AUTOMATIC == "RESTRICTIVE" ]; then
-            textbox 1 "${RED}$ICON_SUCCES ALERT: Restrictive mode. No whitelist found for command${NC}" "angry"
+            textbox 1 "${RED}$ICON_SUCCES ALERT: Restrictive mode without SciKit. Rejecting command.${NC}" "angry"
             DISALLOWED_BY="Default"
             DISALLOWED_COMMAND="$COMMAND"
             return 0
@@ -2318,10 +2451,10 @@ securitycheck() {
     fi
 
     textdebug 0 "DETECTOR: $PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$VERBOSE_LEVEL\""
-    echo "$PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$VERBOSE_LEVEL\"" >> "$JOB_DIR/JOURNAL"
+    echo "$PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$MODE_AUTOMATIC\" \"$VERBOSE_LEVEL\"" >> "$JOB_DIR/JOURNAL"
 
     set +e
-    $PYTHON_BIN $BASE_DIR/detector.py "$JOB_DIR" "$COMMAND" "$VERBOSE_LEVEL"
+    $PYTHON_BIN $BASE_DIR/detector.py "$JOB_DIR" "$COMMAND" "$MODE_AUTOMATIC" "$VERBOSE_LEVEL"
     PYRESULT=$?
     set -e
     
@@ -2337,7 +2470,7 @@ securitycheck() {
 
     # Automatic signalling of allowed status
     textdebug 0 "DETECTOR: Signal status"
-    if [ $MODE_AUTOMATIC == "PERMISSIVE" ]; then
+    if [ $MODE_AUTOMATIC == "ADAPTIVE" ]; then
         # 9 = Vantage (Low threat), 10 = Clear Water (Zero threat)
         if [ $PYRESULT -eq 9 ] || [ $PYRESULT -eq 10 ]; then
             textbox 2 "${GREEN}$ICON_SUCCES SCIKIT SECURITY NOTICE: Honeybee is flying by instinct ${NC}" "chill"
@@ -2782,7 +2915,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
     
     # Assure that input ends with a dot
     TRIMMED="${INPUT%"${INPUT##*[![:space:]]}"}"
-    if [[ "$TRIMMED" != *. ]]; then
+    if [[ "$TRIMMED" != *. ]] && [[ "$TRIMMED" != *? ]]; then
         INPUT="$INPUT."
     fi
     
@@ -2952,7 +3085,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
 
                     count=101
                     REPLY=""
-                    while [[ "$JOB_COMPLETED" == "false" ]]; do
+                    while [[ "$JOB_COMPLETED" == "false" ]] && [[ -z "$REPLY" ]]; do
 
                         while [[ -z "$REPLY" ]]; do
                             # signal alive every 20 seconds second
@@ -2993,7 +3126,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                             # Only leave this read loop if the key is a valid matching menu choice
                             if [[ -n "$REPLY" ]]; then
                                 local_reply="${REPLY,,}"
-                                if [[ "$local_reply" =~ ^(y|o|s|a|n|r|f|q|z)$ ]]; then
+                                if [[ "$local_reply" =~ ^(y|o|s|a|n|r|f|q)$ ]]; then
                                     break
                                 else
                                     echo -e "${GOLD}⚠ Please press either of Yes/Once/Skip/Always/Never/Replace/Followup or 'q' to quit.${NC}"

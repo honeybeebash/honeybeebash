@@ -104,9 +104,10 @@ if __name__ == "__main__":
 
     job_dir = sys.argv[1]
     input_cmd = " ".join(sys.argv[2:])
+    automation_mode = " ".join(sys.argv[3:])
     
     try:
-        verbose_level = int(sys.argv[3])
+        verbose_level = int(sys.argv[4])
     except (IndexError, ValueError):
         # Default to 0 if the argument is missing or not a number
         verbose_level = 0
@@ -137,7 +138,7 @@ if __name__ == "__main__":
     malicious_prob = probabilities[1]
     safe_prob = probabilities[0]
 
-    if SECURITY_POLICY == "RESTRICTIVE":
+    if automation_mode == "RESTRICTIVE":
         if safe_prob < 1.0:
             if verbose_level > 0:
                 print(f"{RED}{ICON_WARN} WARNING: Unrecognized bait! Policy is RESTRICTIVE. ({safe_prob:.2f}){RESET}\n")
