@@ -40,7 +40,6 @@ The host system must have these basic commands available in the shell environmen
 * **standard coreutils** (`mkdir`, `cp`, `ln`, `sed`, `grep`, `chmod`, `chown`, `basename`, `cut`, `tr`, `id`, `uname`)
 
 
-
 ## Required Package Dependencies
 The script will audit the system and attempt to automatically install the following tools using your native package manager (`apt`, `dnf`, or `pacman`). However, if you are offline or minimal environment restrictions apply, please install them manually:
 
@@ -57,7 +56,8 @@ The script will audit the system and attempt to automatically install the follow
 | `zip` / `unzip` | Utilities for packing and unpacking compressed data archives |
 | `dos2unix` | Text file format converter (Ensures cross-platform script stability) |
 
-]
+
+
 ## Installation targets:
 
 The global/default configuration will be stored in the user's home directory;

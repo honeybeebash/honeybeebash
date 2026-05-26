@@ -145,6 +145,7 @@ CORE COMMAND OPTIONS:
   --verbose=0-2           Show less output (0) or more (2) [CONFLICT] [WARNING] [NOTICE]
   --silent                Show no output  
   --debug=0-3             Set debug level (0 none - 3 full)  
+  --venv                  Prints out the command to enter the python virtual environment
   --update                Obtains the latest version and installs the scripts only for immediate use
   --exit                  Exit after processing parameter commands
 
@@ -234,6 +235,18 @@ while [[ $# -gt 0 ]]; do
             DEBUG_LEVEL="${DEBUG_LEVEL:-0}"
             shift 1
             ;;
+        --venv)
+            BACKPACK_DIR="/opt/honeybeebash/backpack"
+            ACTIVATE_PATH=$(find "$BACKPACK_DIR" -name "activate" -path "*/bin/*" | head -n 1)
+            if [[ -f "$ACTIVATE_PATH" ]]; then
+                echo -e "\nTo enter the Virtual Environment and use its tools, run:\nsource $ACTIVATE_PATH"
+                echo -e "\n(Type 'deactivate' when you want to leave the Venv)\n"
+            else
+                echo -e "\n[ERROR]Could not find the Virtual Environment (activation script) in $BACKPACK_DIR."
+                echo "Is the Backpack Venv properly installed ?"
+            fi 
+            end_program
+            ;;
         --timeout=*) TIMEOUT="${1#*=}"; shift 1  ;;
         --delay=*) DO_BEE_DELAY="${1#*=}"; shift 1  ;;
         --capresponse=*) 
@@ -243,6 +256,7 @@ while [[ $# -gt 0 ]]; do
             ;;
 
         --update) DO_UPDATE="true"; shift 1 ;;
+        --updateedge) DO_UPDATE="edge"; shift 1 ;;
 
         --ask) DO_ASKONCE="true"; shift 1  ;;    
 
@@ -450,25 +464,32 @@ textdebug() {
 }
 
 # --- Early catch for Bee update
-if [[ "$DO_UPDATE" == "true" ]]; then
-    textdebug 0 "Updating Bee ..."
-    DOWNLOAD="https://honeybeebash.com/downloads/honeybeebash.zip"
+if [[ "$DO_UPDATE" != "false" ]]; then
+    if [[ "$DO_UPDATE" == "edge" ]]; then
+        DLFILE="edge.zip"
+        textdebug 0 "Updating Bee-edge ..."
+    else
+        DLFILE="honeybeebash.zip"
+        textdebug 0 "Updating Bee ..."
+    fi
+
+    DOWNLOAD="https://honeybeebash.com/downloads/$DLFILE"
 
     cd $HOME
-    if [[ -f "honeybeebash.zip" ]]; then
-        rm -f honeybeebash.zip
+    if [[ -f "$DLFILE" ]]; then
+        rm -f "$DLFILE"
     fi
 
     # Download zip
     textdebug 2 "Downloading ZIP ..."
-    wget $DOWNLOAD
-    if [[ ! -f "honeybeebash.zip" ]]; then
+    wget "$DOWNLOAD"
+    if [[ ! -f "$DLFILE" ]]; then
         end_program 1 "$ICON_FAIL Could not download from $DOWNLOAD"
     fi
 
     # Unpack
     textdebug 2 "Unpacking ..."
-    unzip -o honeybeebash.zip
+    unzip -o "$DLFILE"
     if [[ ! -f "honeybeebash/src/bee.sh" ]]; then
         end_program 1 "$ICON_FAIL Could not unpack the download to $HOME"
     fi
@@ -496,24 +517,24 @@ fi
 
 # --- Detect System Python (The Foundation) ---
 textdebug 2 "Detecting System Python3..."
-SYSTEM_PYTHON=$(which python3)
+SYSTEM_PYTHON=$(command -v python3)
 
 if [[ -z "$SYSTEM_PYTHON" ]]; then
-    end_program 1 "$ICON_FAIL Python3 not found on system. Install it first." 
+    end_program 1 "Python3 not found on system. Install it first." 
 fi
 
 # --- Branching Logic (Legacy vs Backpack) ---
 if [[ "$LEGACY_MODE" == "true" ]]; then
-    textdebug 2 "$ICON_PACKAGE Legacy Mode Active: Using Global Environment."
+    textdebug 2 "Legacy Mode Active: Using Global Environment."
     PYTHON_BIN="$SYSTEM_PYTHON"
     
     # Locate Global Pip
-    PIP_BIN=$(which pip3)
+    PIP_BIN=$(command -v pip3)
     if [[ -z "$PIP_BIN" ]]; then
         if $SYSTEM_PYTHON -m pip --version &> /dev/null; then
             PIP_BIN="$SYSTEM_PYTHON -m pip"
         else
-            end_program 1 "$ICON_FAIL Legacy Pip not found. Try: sudo apt install python3-pip"
+            end_program 1 "Legacy Pip not found. Try: sudo apt install python3-pip"
         fi
     fi
 
@@ -525,7 +546,7 @@ else
 fi
 # --- Final Validation ---
 if [[ ! -x $(echo $PYTHON_BIN | cut -d' ' -f1) ]]; then
-    end_program 1 "$ICON_FAIL Final Python binary not executable: $PYTHON_BIN"
+    end_program 1 "Final Python binary not executable: $PYTHON_BIN"
 fi
 
 textdebug 0 "Active Python: $PYTHON_BIN"
@@ -780,6 +801,52 @@ texterror() {
 }
 
 
+get_lan_ip() {
+    # 1. Try modern 'ip' command (Standard on almost all modern Linux distros)
+    if command -v ip >/dev/null 2>&1; then
+        ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}'
+        return
+    fi
+
+    # 2. Try classic 'hostname' command (Common on Debian/Ubuntu/RedHat)
+    if command -v hostname >/dev/null 2>&1; then
+        hostname -I | awk '{print $1}'
+        return
+    fi
+
+    # 3. Try legacy 'ifconfig' (Common on older systems/CentOS 6)
+    if command -v ifconfig >/dev/null 2>&1; then
+        ifconfig | awk '/inet / && !/127.0.0.1/ {print $2; exit}' | sed 's/addr://'
+        return
+    fi
+
+    # 4. Try Python (Common in minimal containers running app stacks)
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('1.1.1.1', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null
+        return
+    fi
+
+    # 5. The Ultimate Zero-Dependency Fallback (For stripped Docker containers)
+    # Reads the hex routing table, converts the default gateway interface's hex IP to decimals.
+    # This structure (/proc/net/route) hasn't changed fundamentally in decades.
+    if [ -f /proc/net/route ]; then
+        local hex_ip
+        hex_ip=$(awk 'NR==2 {print $3}' /proc/net/route)
+        if [ -not -z "$hex_ip" ] && [ "$hex_ip" != "00000000" ]; then
+            # Convert 8-char Hex string (little endian) to IP format
+            printf "%d.%d.%d.%d\n" \
+                "$((16#${hex_ip:6:2}))" \
+                "$((16#${hex_ip:4:2}))" \
+                "$((16#${hex_ip:2:2}))" \
+                "$((16#${hex_ip:0:2}))"
+            return
+        fi
+    fi
+    
+    # If all else fails
+    echo "127.0.0.1"
+}
+
 # Internal variables
 
 textdebug 0 "Initializing..."
@@ -797,11 +864,13 @@ SELECTED_CONTEXT_SIZE=""
 SELECTED_MODEL_RETRY_TIMEOUT=5
 SELECTED_MODEL_BASE_URL=""
 GEMINI_API_KEY=""
+ENABLE_SCIKIT="false"
 USE_ML_GUARD="false"
+ML_GUARD="unknown"
 
 # System and environment
 LINEAGE=$(grep -iP '^(ID_LIKE|ID)=' /etc/os-release | cut -d= -f2 | tr -d '"' | head -n 1)  # Linux Family
-HOSTNAME=$(hostname)
+HOSTNAME=$(cat /etc/hostname)
 SYSTEM=$(uname -a)
 OS=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
 OS=${OS// /_}
@@ -810,10 +879,7 @@ PATH_ENV=$PATH
 SHELL_TYPE=$SHELL
 IS_SUDO=$(sudo -n true 2>/dev/null && echo "YES" || echo "NO")
 WAN_IP=$(curl -s ifconfig.me)
-LAN_IP=$(ip route get 8.8.8.8 2>/dev/null | grep -oP 'src \K\S+')
-if [[ -z "$LAN_IP" ]]; then
-    LAN_IP=$(hostname -I | awk '{print $1}')
-fi
+LAN_IP=$(get_lan_ip)
 
 # Search for primary lineage keywords first
 OS_FAMILY=$(grep -Ei "debian|fedora|arch|suse" /etc/os-release | head -n 1 | grep -Eoi "debian|fedora|arch|suse" | tr '[:upper:]' '[:lower:]')
@@ -884,7 +950,7 @@ if [[ "$ENABLE_SCIKIT" == "true" ]]; then
     py_rc=$?
     set -e
     textdebug 0 "SciKit integrity : Result of import check=$PY_CHECK"
-    if [ "$py_rc" -eq 0 ]; then
+    if [ "$py_rc" -eq "0" ]; then
         if [[ "$PY_CHECK" == *"No module named"* ]]; then
             end_program 1 "SciKit integrity : Missing Panda or SKLearn."
         fi
@@ -923,10 +989,10 @@ elif [[ "$DO_SILENT" == "false" ]]; then
     echo -e "     /   \ (0 0) /   \    | ${WHITE}GUARD: $ML_GUARD${GOLD} "
     echo -e "    |  M  |  X  |  M  |   | ${WHITE}MODEL: $LLM_MODEL${GOLD}   "
     echo -e "    |_____/ @@@ \_____|   | ${WHITE}MODE: $MODE_AUTOMATIC${GOLD}"
-    echo -e "           @@@@@          |__________________|"
-    echo -e "            @@@           | ${WHITE}SYSTEM // NETWORK${GOLD}|"
-    echo -e "             V            | ${WHITE}SCANS + ++ACTION ${GOLD}|"
-    echo -e "                          | ${WHITE}SCIKIT # HEURISTICS${NC}${GOLD}|"
+    echo -e "           @@@@@          |__________________"
+    echo -e "            @@@           | ${WHITE}SYSTEM // NETWORK${GOLD}"
+    echo -e "             V            | ${WHITE}SCANS + ++ACTION ${GOLD}"
+    echo -e "                          | ${WHITE}SCIKIT # HEURISTICS${NC}${GOLD}"
     echo -e "${GOLD}=============================================${NC}"
     echo -e "${NC}"
 fi
@@ -2955,7 +3021,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
 
                     count=101
                     REPLY=""
-                    while [[ "$JOB_COMPLETED" == "false" ]]; do
+                    while [[ "$JOB_COMPLETED" == "false" ]] && [[ -z "$REPLY" ]]; do
 
                         while [[ -z "$REPLY" ]]; do
                             # signal alive every 20 seconds second
@@ -2996,7 +3062,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                             # Only leave this read loop if the key is a valid matching menu choice
                             if [[ -n "$REPLY" ]]; then
                                 local_reply="${REPLY,,}"
-                                if [[ "$local_reply" =~ ^(y|o|s|a|n|r|f|q|z)$ ]]; then
+                                if [[ "$local_reply" =~ ^(y|o|s|a|n|r|f|q)$ ]]; then
                                     break
                                 else
                                     echo -e "${GOLD}⚠ Please press either of Yes/Once/Skip/Always/Never/Replace/Followup or 'q' to quit.${NC}"

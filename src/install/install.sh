@@ -24,9 +24,10 @@ echo "Before proceeding, please review our Terms of Service and"
 echo "Privacy Policy at: https://honeybeebash.com or in .md files"
 echo "------------------------------------------------------------"
 
-read -p "Do you accept these terms? (y/N): " response
+read -p "Do you accept these terms? (Yes/No/Quit): " response
+response=${response:-}
 case "$response" in
-    [yY][eE][sS]|[yY]) 
+    y|yes) 
         echo "Terms accepted. Proceeding with installation..."
         ;;
     *)
@@ -43,6 +44,61 @@ while [[ $# -gt 0 ]]; do
         --legacy) LEGACY_MODE="true"; shift 1  ;;
     esac
 done
+
+
+
+# ==============================================================================
+# --- PRE-FLIGHT ENVIRONMENT & PRIVILEGE SANITY CHECKS ---
+# ==============================================================================
+
+# 1. Ensure Bash Version is compatible (Requires Bash 4.0+ for advanced arrays)
+if (( BASH_VERSINFO[0] < 4 )); then
+    echo "$ICON_FAIL Error: HoneyBeeBash requires Bash 4.0 or higher."
+    echo "Your current version is: ${BASH_VERSION}"
+    exit 1
+fi
+
+# 2. Emergency Bootstrap: Check and install 'sudo' if missing in a root/minimal container
+if ! command -v sudo &> /dev/null; then
+    echo "$ICON_CRITICAL 'sudo' is missing from this environment. Attempting emergency bootstrap..."
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            ubuntu|debian|raspberrypi|kali|pop) apt-get update && apt-get install -y sudo ;;
+            fedora|rhel|almalinux|rocky|centos) dnf install -y sudo ;;
+            arch|manjaro) pacman -Sy --noconfirm sudo ;;
+            opensuse*|tumbleweed|sles) zypper install -y sudo ;;
+            *) echo "$ICON_FAIL Error: 'sudo' is required but cannot be auto-installed on this OS."; exit 1 ;;
+        esac
+    else
+        echo "$ICON_FAIL Error: 'sudo' is missing and OS cannot be detected."; exit 1
+    fi
+fi
+
+# 3. Critical Core System Commands Validation
+# We verify these exist before running the installer so the script doesn't fail mid-way.
+CRITICAL_CORE_CMDS=(getent sed grep mkdir cp ln chmod chown basename cut tr id uname)
+MISSING_CORE_CMDS=()
+
+for cmd in "${CRITICAL_CORE_CMDS[@]}"; do
+    if ! command -v "$cmd" &> /dev/null; then
+        MISSING_CORE_CMDS+=("$cmd")
+    fi
+done
+
+# If any essential core commands are missing, abort early with instructions
+if [ ${#MISSING_CORE_CMDS[@]} -ne 0 ]; then
+    echo "$ICON_FAIL Error: The environment is missing critical low-level system utilities:"
+    echo "   Missing: ${MISSING_CORE_CMDS[*]}"
+    echo " "
+    echo "Please install 'coreutils' / 'glibc-utils' via your system package manager"
+    echo "before running this installer script again."
+    exit 1
+fi
+
+# ==============================================================================
+# --- END OF PRE-FLIGHT CHECKS (Safe to continue execution) ---
+# ==============================================================================
 
 
 # --- Run from base dir ---
@@ -65,8 +121,12 @@ fi
 
 # --- Requires user + group ---
 echo " "
-read -p "$ICON_INPUT Enter the username to install for (or Enter for $REAL_USER): " USER
+read -p "$ICON_INPUT Enter the username to install for (Q for quit or Enter for $REAL_USER): " USER
 USER=${USER:-}
+if [[ "$USER" == "q" ]] || [[ "$USER" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+fi
 if [[ -z "$USER" ]]; then
     USER="$REAL_USER"
     echo "$ICON_SUCCES Applying user $USER."
@@ -78,8 +138,12 @@ fi
 REAL_GROUP=$(id -gn $REAL_USER)
 
 echo " "
-read -p "$ICON_INPUT Enter the groupname (Enter for $REAL_GROUP): " GROUP
+read -p "$ICON_INPUT Enter the groupname (Q for quit or Enter for $REAL_GROUP): " GROUP
 GROUP=${GROUP:-}
+if [[ "$GROUP" == "q" ]] || [[ "$GROUP" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+fi
 if [[ -z "$GROUP" ]]; then
     GROUP="$REAL_GROUP"
     echo "$ICON_SUCCES Applying user $USER."
@@ -269,16 +333,13 @@ case "$OS_FAMILY" in
         ;;
 
     fedora)
-        # Fedora is bleeding edge; no extra repos usually needed for standard nectar
         UPDATE_CMD="dnf check-update"
         INSTALL_CMD="dnf install -y" 
         ;;
 
     rhel|almalinux|rocky|centos)
-        # Enterprise distros often need EPEL for common dependencies
         echo "$ICON_DOWNLOAD Ensuring EPEL repository for Enterprise Linux..."
         dnf install -y epel-release --nogpgcheck >/dev/null 2>&1
-        
         UPDATE_CMD="dnf check-update"
         INSTALL_CMD="dnf install -y --nogpgcheck" 
         ;;
@@ -288,8 +349,13 @@ case "$OS_FAMILY" in
         INSTALL_CMD="pacman -S --noconfirm" 
         ;;
 
+    opensuse*|tumbleweed|sles|suse)
+        UPDATE_CMD="zypper refresh"
+        INSTALL_CMD="zypper install -y"
+        ;;
+
     *)
-        echo -e "\n$ICON_FAIL Unknown OS ($OS_FAMILY). Install dependencies manually: $DEPENDENCIES"
+        echo -e "\n$ICON_FAIL Unknown OS ($OS_FAMILY). Install dependencies manually: ${DEPENDENCIES[*]}"
         exit 1 
         ;;
 esac
@@ -310,9 +376,12 @@ echo " "
 echo "$ICON_PACKAGE Applying '$UPDATE_CMD; $INSTALL_CMD' for installing packages."
 echo " "
 
-read -p "$ICON_QUESTION Continue with installation ? (y/n): " confirm
+read -p "$ICON_QUESTION Continue with installation ? (Yes/No/Quit): " confirm
 confirm=${confirm,,} 
-if [[ "$confirm" != "y" && "$confirm" != "" ]]; then
+if [[ "$confirm" == "q" ]] || [[ "$confirm" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+elif [[ "$confirm" != "y" && "$confirm" != "yes" && "$confirm" != "" ]]; then
     echo -e "\n$ICON_FAIL Installation aborted."
     exit 1
 fi
@@ -342,7 +411,7 @@ done
 
 # --- Detect System Python (The Foundation) ---
 echo "Detecting System Python3..."
-SYSTEM_PYTHON=$(which python3)
+SYSTEM_PYTHON=$(command -v python3)
 
 if [[ -z "$SYSTEM_PYTHON" ]]; then
     echo "$ICON_FAIL Python3 not found on system. Install it first." 
@@ -357,7 +426,7 @@ if [[ "$LEGACY_MODE" == "true" ]]; then
     PYTHON_BIN="$SYSTEM_PYTHON"
     
     # Locate Global Pip
-    PIP_BIN=$(which pip3)
+    PIP_BIN=$(command -v pip3)
     if [[ -z "$PIP_BIN" ]]; then
         if $SYSTEM_PYTHON -m pip --version &> /dev/null; then
             PIP_BIN="$SYSTEM_PYTHON -m pip"
@@ -436,8 +505,12 @@ echo "$ICON_SUCCES Active Pip: $PIP_BIN"
 # --- Install SciKit Backpack ---
 echo " "
 ENABLE_SCIKIT="false"
-read -p "$ICON_QUESTION Install SciKit for heuristic learning ? (y/n): " install_sci
-if [[ "$install_sci" =~ ^[Yy]$ ]]; then
+read -p "$ICON_QUESTION Install SciKit for heuristic learning ? (Yes/No/Quit): " install_sci
+install_sci=${install_sci,,} 
+if [[ "$install_sci" == "q" ]] || [[ "$install_sci" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+elif [[ "$install_sci" == "y" ]] || [[ "$install_sci" == "yes" ]]; then
     sudo -u "$USER" install/install-scikit.sh "$USER" "$GROUP" "$LLM_MODEL"
     ENABLE_SCIKIT="true"
 fi
@@ -445,8 +518,12 @@ fi
 
 # --- Store LAN API URL ---
 echo " "
-read -p "$ICON_QUESTION  Enter your LAN LLM Model API URL incl. port (or Enter to skip): " localai_url
+read -p "$ICON_QUESTION  Enter your LAN LLM Model API URL incl. port (Q for quit or Enter to skip): " localai_url
 localai_url=${localai_url:-}
+if [[ "$localai_url" == "q" ]] || [[ "$localai_url" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+fi
 sed -i '/SELECTED_MODEL_BASE_URL/d' "$USER_LOCAL_DIR/models/local.conf"
 if [[ -n "$localai_url" ]]; then
     echo "SELECTED_MODEL_BASE_URL=\"$localai_url\"" >> "$USER_LOCAL_DIR/models/local.conf"
@@ -470,21 +547,38 @@ case $model_choice in
     3) LLM_MODEL="googleapi"  ;;
 esac
 if [[ -z "$LLM_MODEL" ]]; then
-    echo -e "\n$ICON_FAIL Thats daft. No model chosen. Exiting\n"
+    echo -e "\n$ICON_FAIL No LLM model chosen. Exiting\n"
     exit 0
 fi
-
 
 # --- If chosen install google API ---
 if [[ "$LLM_MODEL" == "googleapi" ]]; then
     echo " "
-    read -p "$ICON_QUESTION Continue to install required google-genai into the Backpack? (y/n): " install_genai
-    if [[ "$install_genai" =~ ^[Yy]$ ]]; then
+    read -p "$ICON_QUESTION Continue to install required google-genai into the Backpack? (Yes/No/Quit): " install_genai
+    install_genai=${install_genai:-}
+    
+    if [[ "$install_genai" == "q" ]] || [[ "$install_genai" == "quit" ]]; then
+        echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+        exit 0
+    elif [[ "$install_genai" == "y" ]] || [[ "$install_genai" == "yes" ]]; then
         echo "$ICON_DOWNLOAD Fetching Google Generative AI nectar..."
+        
+        # Attempt 1: Standard upgrade/install
         if sudo -u "$USER" "$PIP_BIN" install -q -U google-genai; then
             echo "$ICON_SUCCES google-genai integrated into the backpack."
         else
-            echo -e "\n$ICON_FAIL Failed to install google-genai.\n"
+            # Attempt 2: If first fail, purge cache and try without cache
+            echo "$ICON_SYNC Hash mismatch or download error detected. Cleaning nectar cache and retrying..."
+            sudo -u "$USER" "$PIP_BIN" cache purge > /dev/null 2>&1
+            
+            if sudo -u "$USER" "$PIP_BIN" install -q --no-cache-dir google-genai; then
+                echo "$ICON_SUCCES google-genai integrated after cache purge."
+            else
+                echo -e "\n$ICON_FAIL Failed to install google-genai even after cache purge.\n"
+                echo "Check your internet connection or firewall settings."
+                exit 1
+            fi
+
         fi
     fi
 fi
@@ -492,7 +586,11 @@ fi
 
 # --- Store Gemini API key ---
 echo " "
-read -p "$ICON_INPUT Enter your Gemini API key (or Enter to skip): " gemini_key
+read -p "$ICON_INPUT Enter your Gemini API key (Q for quit or Enter to skip): " gemini_key
+if [[ "${gemini_key,,}" == "q" || "${gemini_key,,}" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+fi
 gemini_key=${gemini_key:-}
 sed -i '/GEMINI_API_KEY/d' "$USER_LOCAL_DIR/models/googleapi.conf"
 sed -i '/GEMINI_API_KEY/d' "$USER_LOCAL_DIR/models/geminiflash.conf"
@@ -514,7 +612,7 @@ case $automation_mode in
     3) MODE_AUTOMATIC="MANUAL"  ;;
 esac
 if [[ -z "$MODE_AUTOMATIC" ]]; then
-    echo -e "\n$ICON_FAIL automation mode chosen. Exiting\n"
+    echo -e "\n$ICON_FAIL No automation mode chosen. Exiting\n"
     exit 0
 fi
 
@@ -535,8 +633,12 @@ fi
 
 # --- Prefered Text Editor ---
 echo " "
-read -p "$ICON_INPUT Enter your preferred text editor (Enter for $DEFAULT_EDITOR): " user_editor
+read -p "$ICON_INPUT Enter your preferred text editor (Q for quit Enter for $DEFAULT_EDITOR): " user_editor
 user_editor=${user_editor:-/usr/bin/nano}
+if [[ "$user_editor" == "q" ]] || [[ "$user_editor" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+fi
 echo "Selected editor : $user_editor"
 
 # --- Store username in bee.conf ---
@@ -551,7 +653,7 @@ user_email=${user_email:-}
 
 # --- Store HiveHub API key ---
 echo " "
-read -p "$ICON_INPUT Enter your HiveHub API key (Enter to skip) : " user_key
+read -p "$ICON_INPUT Enter your HiveHub --export API key (Enter to skip) : " user_key
 user_key=${user_key:-}
 
 
@@ -583,8 +685,12 @@ echo "If you wish to configure to enable email configurations continue below."
 echo "You can enable this later by completing \$HOME/.config/honeybeebash/notify.conf"
 
 echo " "
-read -p "$ICON_QUESTION Configure notifications by mail ? (y/n): " configure_email
-if [[ "$configure_email" =~ ^[Yy]$ ]]; then
+read -p "$ICON_QUESTION Configure notifications by mail ? (Yes/No): " configure_email
+configure_email=${configure_email:-}
+if [[ "$configure_email" == "q" ]] || [[ "$configure_email" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+elif [[ "$configure_email" == "y" ]] || [[ "$configure_email" == "yes" ]]; then
 
     read -p "$ICON_INPUT Enter the hostname of your mailserver : " host
     host=${host:-}
@@ -614,7 +720,7 @@ our \$smtp_pass   = '$password';     # Your mail server password
 1; # Crucial success return value
 EOF
 
-    echo "✅ Configuration written to notify.conf successfully."
+    echo "$ICON_SUCCES Configuration written to notify.conf successfully."
 
 else
     # Write default to config
@@ -637,7 +743,7 @@ fi
 # --- Choose sudo mode ---
 APPLY_SUDO="false"
 echo " "
-read -p "$ICON_QUESTION Allow Bee to run as sudo ? (y/n): " sudo_allowed
+read -p "$ICON_QUESTION Allow Bee to run as sudo ? (Yes/No): " sudo_allowed
 if [[ "$sudo_allowed" =~ ^[Yy]$ ]]; then
     APPLY_SUDO="true"
 fi

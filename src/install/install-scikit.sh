@@ -75,6 +75,11 @@ case "$OS" in
         INSTALL_CMD="pacman -S --noconfirm" 
         ;;
 
+    opensuse*|tumbleweed|sles|suse)
+        UPDATE_CMD="zypper refresh"
+        INSTALL_CMD="zypper install -y"
+        ;;
+
     *)
         echo -e "\n$ICON_FAIL Unknown OS ($OS). Install dependencies manually: $DEPENDENCIES"
         exit 1 
@@ -84,7 +89,7 @@ esac
 
 # --- Detect System Python (The Foundation) ---
 echo "Detecting System Python3..."
-SYSTEM_PYTHON=$(which python3)
+SYSTEM_PYTHON=$(command -v python3)
 
 if [[ -z "$SYSTEM_PYTHON" ]]; then
     echo "$ICON_FAIL Python3 not found on system. Install it first." 
@@ -99,7 +104,7 @@ if [[ "$LEGACY_MODE" == "true" ]]; then
     PYTHON_BIN="$SYSTEM_PYTHON"
     
     # Locate Global Pip
-    PIP_BIN=$(which pip3)
+    PIP_BIN=$(command -v pip3)
     if [[ -z "$PIP_BIN" ]]; then
         if $SYSTEM_PYTHON -m pip --version &> /dev/null; then
             PIP_BIN="$SYSTEM_PYTHON -m pip"
