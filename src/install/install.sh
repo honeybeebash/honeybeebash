@@ -602,14 +602,16 @@ echo "GEMINI_API_KEY=\"$gemini_key\"" >> "$USER_LOCAL_DIR/models/geminiflash.con
 MODE_AUTOMATIC=""
 echo " "
 echo -e "\n$ICON_QUESTION Choose the prefered automation mode:"
-echo "1) RESTRICTIVE = Automate on 0 score only"
-echo "2) PERMISSIVE (standard) = Automate on <10% threat score"
-echo "3) MANUAL = No automation"
-read -p "Select [1-3] or Quit: " automation_mode
+echo "1) RESTRICTIVE = Automate when whitelisted only"
+echo "2) PERMISSIVE = Automate if not blacklisted (autonomous mode)"
+echo "3) ADAPTIVE (standard) = Automate on <10% threat score"
+echo "4) MANUAL = No automation"
+read -p "Select [1-4] or Quit: " automation_mode
 case $automation_mode in
     1) MODE_AUTOMATIC="RESTRICTIVE"  ;;
     2) MODE_AUTOMATIC="PERMISSIVE"  ;;
-    3) MODE_AUTOMATIC="MANUAL"  ;;
+    3) MODE_AUTOMATIC="ADAPTIVE"  ;;
+    4) MODE_AUTOMATIC="MANUAL"  ;;
 esac
 if [[ -z "$MODE_AUTOMATIC" ]]; then
     echo -e "\n$ICON_FAIL No automation mode chosen. Exiting\n"
@@ -761,8 +763,9 @@ echo -e "\n# Selected LLM model" >> "$USER_CONFIG_DIR/bee.conf"
 echo "LLM_MODEL=\"$LLM_MODEL\"" >> "$USER_CONFIG_DIR/bee.conf"
 
 echo -e "\n# Automatic execution" >> "$USER_CONFIG_DIR/bee.conf"
-echo "# RESTRICTIVE = Automate on 0 score only" >> "$USER_CONFIG_DIR/bee.conf"
-echo "# PERMISSIVE = Automate on <10% threat score" >> "$USER_CONFIG_DIR/bee.conf"
+echo "# RESTRICTIVE = Automate if whitelisted or 0 threat score" >> "$USER_CONFIG_DIR/bee.conf"
+echo "# PERMISSIVE = Automate if not blacklisted" >> "$USER_CONFIG_DIR/bee.conf"
+echo "# ADAPTIVE = Automate on <10% threat score" >> "$USER_CONFIG_DIR/bee.conf"
 echo "# MANUAL = No automation" >> "$USER_CONFIG_DIR/bee.conf"
 echo "MODE_AUTOMATIC=\"$MODE_AUTOMATIC\"" >> "$USER_CONFIG_DIR/bee.conf"
 echo "APPLY_SUDO=\"$APPLY_SUDO\"" >> "$USER_CONFIG_DIR/bee.conf"

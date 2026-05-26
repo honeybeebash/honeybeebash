@@ -11,7 +11,7 @@
 
 
 ## Project Info
-**Version:** 1.0.4
+**Version:** 1.0.5
 **Author:** M.D.P de Clerck ([mike@clerck.nl](mailto:mike@clerck.nl))  
 **License:** [GNU General Public License v3](LICENSE)
 
@@ -312,7 +312,8 @@ The Heuristic Tier does Pattern recognition and probability on .pkl models.
 To enable autonomous jobs Bee has 3 automation modes which are;
 
 - RESTRICTIVE = Automate on perfect safety score only
-- PERMISSIVE = Automate on =<10% threat score
+- PERMISSIVE = Automate if not blacklisted *au
+- ADAPTIVE = Automate on =<10% threat score
 - MANUAL = No automation, approve all commands
 
 The tiered defence processes in the following order;
@@ -321,9 +322,10 @@ Normalization: Check RUN_REPLACE. If it matches, swap the command.
 Signature Check (Known): Does it contain a known undesired string. If yes, WARN.
 Signature Check (White): Is it in RUN_ALWAYS? If yes, EXECUTE.
 Signature Check (Black): Is it in RUN_NEVER? If yes, WARN.
+Autonomous Check: Are we in permissive mode. If yes then EXECUTE.
 Heuristic Check (Local): Run detector.py.
     Score 10? EXECUTE.
-    Score 9? EXECUTE (if permissive).
+    Score 9? EXECUTE (if adaptive).
 Manual Intervention: If it survives the first 4 steps but isn't "Trusted," it hits the User Prompt to ask for approval response.
 
 

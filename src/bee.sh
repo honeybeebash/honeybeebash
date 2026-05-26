@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.4
+# @version   1.0.5
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -72,7 +72,7 @@ USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.4"
+BEE_VERSION="1.0.5"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -91,6 +91,7 @@ RUNNING_COMMAND=""
 CYCLE=1
 APPLY_SUDO="false"
 JOB_SESSION_FILE=""
+ENABLE_SCIKIT="false"
 
 QUEEN_IP=""
 QUEEN_PORT=""
@@ -228,7 +229,7 @@ while [[ $# -gt 0 ]]; do
         --version)   echo "HoneyBee Bash version $BEE_VERSION"; end_program 0  ;;
         --test)      TEST_MODE="true";  shift  ;;
         --verbose=*) VERBOSE_LEVEL="${1#*=}";  shift 1 ;;
-        --silent)    DO_SILENT="true" shift 1 ;; 
+        --silent)    DO_SILENT="true"; shift 1 ;; 
         --debug=*)
             DEBUG_LEVEL="${1#*=}"
             DEBUG_LEVEL="${DEBUG_LEVEL//[!0-9]/}"
@@ -864,7 +865,6 @@ SELECTED_CONTEXT_SIZE=""
 SELECTED_MODEL_RETRY_TIMEOUT=5
 SELECTED_MODEL_BASE_URL=""
 GEMINI_API_KEY=""
-ENABLE_SCIKIT="false"
 USE_ML_GUARD="false"
 ML_GUARD="unknown"
 
@@ -1247,7 +1247,7 @@ rotate_journal() {
     shopt -u nullglob
     n=$((n + 1))
     mv -- "$jpath" "$dir/$base.$n"
-    if [[ "$USER" == "root" ]]; then
+    if [[ "$USER" == "root" ]] && [[ -f "$JOB_SESSION_FILE" ]]; then
         chown -R $REAL_USER:$REAL_GROUP "$JOB_SESSION_FILE"
     fi
 }
@@ -2303,21 +2303,55 @@ securitycheck() {
     # --- GLOBAL WHITELIST LAYER ---
     textdebug 2 "DETECTOR: Run GLOBAL rules RUN_ALWAYS"
     if [[ -f "$USER_CONFIG_DIR/RUN_ALWAYS" ]]; then
-        if sed 's/[[:space:]]*$//' "$USER_CONFIG_DIR/RUN_ALWAYS" | grep -xFq "$CLEAN_CMD"; then
-            textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Trusted global command detected.${NC}" "happy"
-            AUTO_FIX_ENABLED="true"
-            return 0
-        fi
+        # 1. Clean the user command into a sorted list of unique words
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+
+        while IFS= read -r trusted_line || [[ -n "$trusted_line" ]]; do
+            [[ -z "$trusted_line" || "$trusted_line" =~ ^# ]] && continue
+
+            # 2. Clean the whitelist entry into a sorted list of unique words
+            TRUSTED_WORDS=$(echo "$trusted_line" | tr ' ' '\n' | sort -u)
+
+            # 3. Use 'comm' to find if USER_WORDS contains anything NOT in TRUSTED_WORDS
+            # If the output is empty, it means the user's command is a "safe subset"
+            EXTRA_STUFF=$(comm -23 <(echo "$USER_WORDS") <(echo "$TRUSTED_WORDS"))
+
+            if [[ -z "$EXTRA_STUFF" ]]; then
+                textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Valid permutation of trusted global command.${NC}" "happy"
+                AUTO_FIX_ENABLED="true"
+                return 0
+            fi
+        done < "$USER_CONFIG_DIR/RUN_ALWAYS"
     fi
+
     # --- GLOBAL BLACKLIST LAYER ---
     textdebug 2 "DETECTOR: Run GLOBAL rules RUN_NEVER"
     if [[ -f "$USER_CONFIG_DIR/RUN_NEVER" ]]; then
-        if sed 's/[[:space:]]*$//' "$USER_CONFIG_DIR/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
-            textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by global policy.${NC}" "dead"
-            DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND="$COMMAND"
-            return 0
-        fi
+        # 1. Prepare the user's command words (sorted and unique)
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+            # 2. Prepare the forbidden command words (sorted and unique)
+            FORBIDDEN_WORDS=$(echo "$line" | tr ' ' '\n' | sort -u)
+
+            # 3. Check if the forbidden signature is entirely contained within the user's command.
+            # 'comm -23' shows what's in FORBIDDEN but NOT in USER.
+            # If the result is empty, the user has provided all the "ingredients" of a forbidden command.
+            MISSING_FORBIDDEN_PIECES=$(comm -23 <(echo "$FORBIDDEN_WORDS") <(echo "$USER_WORDS"))
+
+            if [[ -z "$MISSING_FORBIDDEN_PIECES" ]]; then
+                textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: Forbidden global command signature detected.${NC}" "dead"
+                
+                # Set the variables for your error handling/logging
+                DISALLOWED_BY="Run rules (Blacklist)"
+                DISALLOWED_COMMAND="$CLEAN_CMD"
+                
+                # return 0 to prevent 'set -e' from killing the script instantly
+                return 0
+            fi
+        done < "$USER_CONFIG_DIR/RUN_NEVER"
     fi
     # --- GLOBAL REPLACEMENT LAYER (Normalization) ---
     textdebug 2 "DETECTOR: Run GLOBAL rules RUN_REPLACE"
@@ -2335,7 +2369,7 @@ securitycheck() {
             # Check if the command line contains tokens that match the forbidden strings
             if contains_forbidden_token "$NORMALIZED" "$FORBIDDEN_STR"; then
                 textline 1 "Access Denied: Found forbidden string '$FORBIDDEN_STR'"
-                beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden string detected '$FORBIDDEN_STR'.${NC}"
+                beelog "${RED}$ICON_CRITICAL CRITICAL: Forbidden job string detected '$FORBIDDEN_STR'.${NC}"
                 DISALLOWED_BY="ForbiddenList"
                 DISALLOWED_COMMAND="$COMMAND"
                 return 0
@@ -2344,34 +2378,54 @@ securitycheck() {
     fi
     # --- JOB WHITELIST LAYER ---
     if [[ -f "$JOB_DIR/config/RUN_ALWAYS" ]]; then
-        if sed 's/[[:space:]]*$//' "$JOB_DIR/config/RUN_ALWAYS" | grep -xFq "$CLEAN_CMD"; then
-            textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Trusted job command detected.${NC}" "happy"
-            AUTO_FIX_ENABLED="true"
-            return 0
-        fi
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+        while IFS= read -r trusted_line || [[ -n "$trusted_line" ]]; do
+            [[ -z "$trusted_line" || "$trusted_line" =~ ^# ]] && continue
+            TRUSTED_WORDS=$(echo "$trusted_line" | tr ' ' '\n' | sort -u)
+            EXTRA_STUFF=$(comm -23 <(echo "$USER_WORDS") <(echo "$TRUSTED_WORDS"))
+            if [[ -z "$EXTRA_STUFF" ]]; then
+                textbox 2 "${GREEN}$ICON_SUCCES SIGNATURE MATCH: Valid permutation of trusted job command.${NC}" "happy"
+                AUTO_FIX_ENABLED="true"
+                return 0
+            fi
+        done < "$JOB_DIR/config/RUN_ALWAYS"
     fi
     # --- JOB BLACKLIST LAYER ---
     if [[ -f "$JOB_DIR/config/RUN_NEVER" ]]; then
-        if sed 's/[[:space:]]*$//' "$JOB_DIR/config/RUN_NEVER" | grep -xFq "$CLEAN_CMD"; then
-            textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: This command is forbidden by job policy.${NC}" "dead"
-            DISALLOWED_BY="Run rules"
-            DISALLOWED_COMMAND="$COMMAND"
-            return 0
-        fi
+        USER_WORDS=$(echo "$CLEAN_CMD" | tr ' ' '\n' | sort -u)
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ -z "$line" || "$line" =~ ^# ]] && continue
+            FORBIDDEN_WORDS=$(echo "$line" | tr ' ' '\n' | sort -u)
+            MISSING_FORBIDDEN_PIECES=$(comm -23 <(echo "$FORBIDDEN_WORDS") <(echo "$USER_WORDS"))
+            if [[ -z "$MISSING_FORBIDDEN_PIECES" ]]; then
+                textbox 1 "${RED}$ICON_BLOCKED BLOCKLIST ALERT: Forbidden job command signature detected.${NC}" "dead"
+                DISALLOWED_BY="Run rules (Blacklist)"
+                DISALLOWED_COMMAND="$CLEAN_CMD"
+                return 0
+            fi
+        done < "$JOB_DIR/config/RUN_NEVER"
     fi
     # --- JOB REPLACEMENT LAYER (Normalization) ---
     if [[ -f "$JOB_DIR/config/RUN_REPLACE" ]]; then
         replace_commands "$JOB_DIR/config/RUN_REPLACE"
     fi
 
+    # Testmode for INTERACTIVE mode
+    if [ $MODE_AUTOMATIC == "PERMISSIVE" ]; then
+        textbox 2 "${GREEN}$ICON_SUCCES Permissive mode: Allowing command.${NC}" "happy"
+        AUTO_FIX_ENABLED="true"
+        return 0
+    fi
+
+
     # Without a detector only apply RUN rules
     textdebug 0 "DETECTOR: Probe SciKit"
     if [[ "$ENABLE_SCIKIT" == "false" ]] || [[ "$USE_ML_GUARD" == "false" ]]; then
-        if [ $MODE_AUTOMATIC == "PERMISSIVE" ]; then
-            textbox 1 "${RED}$ICON_SUCCES WARNING: Permissive mode. No rule found for command${NC}" "angry"
+        if [ $MODE_AUTOMATIC == "ADAPTIVE" ]; then
+            textbox 1 "${RED}$ICON_SUCCES WARNING: Adaptive mode without SciKit. Allowing command.${NC}" "happy"
             return 0
         elif [ $MODE_AUTOMATIC == "RESTRICTIVE" ]; then
-            textbox 1 "${RED}$ICON_SUCCES ALERT: Restrictive mode. No whitelist found for command${NC}" "angry"
+            textbox 1 "${RED}$ICON_SUCCES ALERT: Restrictive mode without SciKit. Rejecting command.${NC}" "angry"
             DISALLOWED_BY="Default"
             DISALLOWED_COMMAND="$COMMAND"
             return 0
@@ -2387,10 +2441,10 @@ securitycheck() {
     fi
 
     textdebug 0 "DETECTOR: $PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$VERBOSE_LEVEL\""
-    echo "$PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$VERBOSE_LEVEL\"" >> "$JOB_DIR/JOURNAL"
+    echo "$PYTHON_BIN $BASE_DIR/detector.py \"$JOB_DIR\" \"$COMMAND\" \"$MODE_AUTOMATIC\" \"$VERBOSE_LEVEL\"" >> "$JOB_DIR/JOURNAL"
 
     set +e
-    $PYTHON_BIN $BASE_DIR/detector.py "$JOB_DIR" "$COMMAND" "$VERBOSE_LEVEL"
+    $PYTHON_BIN $BASE_DIR/detector.py "$JOB_DIR" "$COMMAND" "$MODE_AUTOMATIC" "$VERBOSE_LEVEL"
     PYRESULT=$?
     set -e
     
@@ -2406,7 +2460,7 @@ securitycheck() {
 
     # Automatic signalling of allowed status
     textdebug 0 "DETECTOR: Signal status"
-    if [ $MODE_AUTOMATIC == "PERMISSIVE" ]; then
+    if [ $MODE_AUTOMATIC == "ADAPTIVE" ]; then
         # 9 = Vantage (Low threat), 10 = Clear Water (Zero threat)
         if [ $PYRESULT -eq 9 ] || [ $PYRESULT -eq 10 ]; then
             textbox 2 "${GREEN}$ICON_SUCCES SCIKIT SECURITY NOTICE: Honeybee is flying by instinct ${NC}" "chill"
