@@ -1,0 +1,11 @@
+# Handle line endings automatically for files detected as text 
+# and leave binary files (like your .zip) alone.
+* text=auto
+
+# Explicitly declare that all shell scripts must use LF.
+# This forces LF even if you are on Windows.
+*.sh text eol=lf
+*.bash text eol=lf
+
+# If you have specific config files in your /config folder
+config/* text eol=lf
