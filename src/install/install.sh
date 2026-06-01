@@ -3,7 +3,7 @@
 # Syntax: install/install.sh {USER} {GROUP}
 #
 # Run from base directory of bee.sh tool.
-# Installs to /opt/honeybeebash
+# Installs to /opt/honeybeebash or custom dir
 # Symlinks from /usr/local/bin/bee and /usr/local/bin/monitor
 #
 # Configuration in $HOME/.config/honeybeebash
@@ -15,6 +15,11 @@ echo "           $ICON_BEE HONEYBEE BASH INSTALLER                  "
 echo -e "-------------------------------------------------------\n"
 
 # --- Obtain basic config ---
+if [[ ! -f "config-default/bee.conf-default" ]]; then
+    echo "ERROR: Can not find config-default/bee.conf-default. "
+    echo "Run this from the src directory or check your download if its complete."
+    exit 1
+fi
 source "config-default/bee.conf-default"
 
 
@@ -24,14 +29,14 @@ echo "Before proceeding, please review our Terms of Service and"
 echo "Privacy Policy at: https://honeybeebash.com or in .md files"
 echo "------------------------------------------------------------"
 
-read -p "Do you accept these terms? (Yes/No/Quit): " response
-response=${response:-}
+read -p "Do you accept these terms? (Yes/No): " response
+response=${response,,}
 case "$response" in
     y|yes) 
         echo "Terms accepted. Proceeding with installation..."
         ;;
     *)
-        echo "Installation aborted. You must accept the terms to continue."
+        echo -e "Installation aborted. You must accept the terms to continue.\n"
         exit 1
         ;;
 esac
@@ -51,29 +56,128 @@ done
 # --- PRE-FLIGHT ENVIRONMENT & PRIVILEGE SANITY CHECKS ---
 # ==============================================================================
 
-# 1. Ensure Bash Version is compatible (Requires Bash 4.0+ for advanced arrays)
+
+# Ensure Bash Version is compatible (Requires Bash 4.0+ for advanced arrays)
 if (( BASH_VERSINFO[0] < 4 )); then
     echo "$ICON_FAIL Error: HoneyBeeBash requires Bash 4.0 or higher."
     echo "Your current version is: ${BASH_VERSION}"
     exit 1
 fi
 
-# 2. Emergency Bootstrap: Check and install 'sudo' if missing in a root/minimal container
+
+# Detect OS
+OS_FAMILY=""
+if command -v getprop &> /dev/null; then
+    echo "Android device detected. Adjusting configuration..."
+    OS_FAMILY="android"
+    VERSION_MAJOR=""
+
+elif [ -f /etc/os-release ]; then
+    . /etc/os-release
+    
+    # Extract the major version number (e.g., "7.9" or "8" or "9.2" becomes "7", "8", "9")
+    # Removing quotes if present in VERSION_ID
+    VERSION_MAJOR=$(echo "${VERSION_ID:-0}" | tr -d '"' | cut -d. -f1)
+    OS_FAMILY="$ID"
+    
+else
+    OS_FAMILY=$(uname -s | tr '[:upper:]' '[:lower:]')
+    VERSION_MAJOR=0
+fi
+if [[ -z "$OS_FAMILY" ]]; then
+    echo "$ICON_FAIL Error: OS cannot be detected. Force it in /etc/os-release"
+    exit 1
+fi
+    
+
+# Check and install 'sudo' if missing in a root/minimal container
 if ! command -v sudo &> /dev/null; then
     echo "$ICON_CRITICAL 'sudo' is missing from this environment. Attempting emergency bootstrap..."
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case "$ID" in
-            ubuntu|debian|raspberrypi|kali|pop) apt-get update && apt-get install -y sudo ;;
-            fedora|rhel|almalinux|rocky|centos) dnf install -y sudo ;;
-            arch|manjaro) pacman -Sy --noconfirm sudo ;;
-            opensuse*|tumbleweed|sles) zypper install -y sudo ;;
-            *) echo "$ICON_FAIL Error: 'sudo' is required but cannot be auto-installed on this OS."; exit 1 ;;
-        esac
-    else
-        echo "$ICON_FAIL Error: 'sudo' is missing and OS cannot be detected."; exit 1
-    fi
+
+    case "$OS_FAMILY" in
+        ubuntu|debian|raspberrypi|kali|raspbian|pop)
+            apt-get update && apt-get install -y sudo 
+            ;;
+        fedora)
+            # Handle old vs modern Red Hat derivatives
+            if [ "$ID" = "fedora" ] || [ "$VERSION_MAJOR" -ge 8 ]; then
+                dnf install -y sudo
+            else
+                yum install -y sudo
+            fi
+            ;;
+        rhel|almalinux|rocky|centos) 
+            # Handle old vs modern Red Hat derivatives
+            if [ "$VERSION_MAJOR" -ge 8 ]; then
+                dnf install -y sudo
+            else
+                yum install -y sudo
+            fi
+            ;;
+        arch|manjaro)
+            pacman -Sy --noconfirm sudo 
+            ;;
+        opensuse*|tumbleweed|sles|suse)
+            zypper install -y sudo 
+            ;;
+        android)
+            pkg install -y sudo 
+            ;;
+        *) 
+            echo -e "\n$ICON_FAIL Unknown OS ($OS_FAMILY). Install Sudo manually: ${DEPENDENCIES[*]}"
+            exit 1 
+            ;;
+    esac
 fi
+echo "$ICON_BEE Sensing Environment: $OS_FAMILY detected."
+
+
+case "$OS_FAMILY" in
+    ubuntu|debian|raspberrypi|kali|raspbian|pop)
+        UPDATE_CMD="apt-get update --allow-releaseinfo-change"
+        INSTALL_CMD="apt-get install -y --allow-unauthenticated" 
+        ;;
+    fedora)
+        UPDATE_CMD="dnf check-update"
+        INSTALL_CMD="dnf install -y"
+        ;;
+    rhel|almalinux|rocky|centos) 
+        # Check if we are on RHEL 8+ / modern systems or RHEL 7 / legacy systems
+        if [ "$VERSION_MAJOR" -ge 8 ]; then
+            echo "$ICON_DOWNLOAD Ensuring EPEL repository for Enterprise Linux..."
+            dnf install -y epel-release --nogpgcheck >/dev/null 2>&1
+            
+            UPDATE_CMD="dnf check-update"
+            INSTALL_CMD="dnf install -y --nogpgcheck" 
+        else
+            echo "$ICON_DOWNLOAD Ensuring EPEL repository for Enterprise Linux 7..."
+            # For RHEL 7, epel-release is typically pulled via yum
+            yum install -y epel-release >/dev/null 2>&1
+            
+            UPDATE_CMD="yum check-update" # || true
+            # Note: yum check-update returns an exit code of 100 if updates are available.
+            # If your script uses 'set -e', you might want to append '|| true' to UPDATE_CMD
+            INSTALL_CMD="yum install -y --nogpgcheck" 
+        fi
+        ;;
+    arch|manjaro) 
+        UPDATE_CMD="pacman -Sy" 
+        INSTALL_CMD="pacman -S --noconfirm" 
+        ;;
+    opensuse*|tumbleweed|sles|suse)
+        UPDATE_CMD="zypper refresh"
+        INSTALL_CMD="zypper install -y"
+        ;;
+    android)
+        UPDATE_CMD="pkg update"
+        INSTALL_CMD="pkg install -y"
+        ;;
+    *) 
+        echo -e "\n$ICON_FAIL Unknown OS ($OS_FAMILY). Install dependencies manually: ${DEPENDENCIES[*]}"
+        exit 1 
+        ;;
+esac
+
 
 # 3. Critical Core System Commands Validation
 # We verify these exist before running the installer so the script doesn't fail mid-way.
@@ -101,11 +205,6 @@ fi
 # ==============================================================================
 
 
-# --- Run from base dir ---
-if [ -f "install.sh" ]; then
-    echo "$ICON_BEE Changing to base dir of bee.sh for installation"
-    cd ..
-fi
 chmod +x install/uninstall.sh
 chmod +x install/install-scikit.sh
 chmod +x install/uninstall-scikit.sh
@@ -122,7 +221,7 @@ fi
 # --- Requires user + group ---
 echo " "
 read -p "$ICON_INPUT Enter the username to install for (Q for quit or Enter for $REAL_USER): " USER
-USER=${USER:-}
+USER=${USER,,}
 if [[ "$USER" == "q" ]] || [[ "$USER" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
     exit 0
@@ -139,7 +238,7 @@ REAL_GROUP=$(id -gn $REAL_USER)
 
 echo " "
 read -p "$ICON_INPUT Enter the groupname (Q for quit or Enter for $REAL_GROUP): " GROUP
-GROUP=${GROUP:-}
+GROUP=${GROUP,,}
 if [[ "$GROUP" == "q" ]] || [[ "$GROUP" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
     exit 0
@@ -153,11 +252,12 @@ if [[ -z "$GROUP" ]]; then
 fi
 
 # --- Run with Sudo ---
-if [ "$EUID" -ne 0 ]; then 
-    echo "$ICON_FAIL Please run as root (use sudo)"
-    exit 1
+if [[ "$ID" != "android" ]]; then
+    if [ "$EUID" -ne 0 ]; then 
+        echo "$ICON_FAIL Please run as root (use sudo)"
+        exit 1
+    fi
 fi
-
 
 # --- Package validation ---
 echo "$ICON_SEARCH Auditing package..."  
@@ -181,35 +281,68 @@ FAIL=""
 for path in "${HONEYBEE_PATHS[@]}"; do
     if [ ! -f "$path" ]; then
         echo "ICON_CRITICAL Missing file: $path"
-        FAIL="$ICON_FAIL There were one or more files missing. Check your download and try again."
+        echo "$ICON_FAIL There were one or more files missing. Check your download and try again."
+        exit 1
     fi
 done
-echo "$ICON_SUCCES Package is valid"
+echo -e "$ICON_SUCCES Package is valid.\n"
 
 
 # Check for at least one available LLM model and config
 if [ $(ls -1 "models"/*.py 2>/dev/null | wc -l) -eq 0 ]; then
     echo "$ICON_FAIL Error: No .py LLM model files found in models/"
-    FAIL="$ICON_FAIL There were one or more files missing. Check your download and try again."
-    exit 1
-fi
-if [[ -n "$FAIL" ]]; then 
-    echo $FAIL; 
+    echo "$ICON_FAIL There were one or more files missing. Check your download and try again."
     exit 1
 fi
 
 
-# --- Paths ---
-BIN_DIR="/usr/local/bin"
-BASE_DIR="/opt/honeybeebash"
-BACKPACK_DIR="$BASE_DIR/backpack"
+INSTALL_LOCATION="system"
+read -p "$ICON_QUESTION Install into system directories ? (Yes, Quit or Type custom path): " installpath
+if [[ "$installpath" == "q" || "$installpath" == "quit" ]]; then
+    exit 1
+fi
+installpath_answer=${installpath,,} 
+if [[ "$installpath_answer" == "y" || "$installpath_answer" == "yes" ]]; then
+    echo "$ICON_DIR Installing to System environment."
+    # --- Paths ---
+    BIN_DIR="/usr/local/bin"
+    BASE_DIR="/opt/honeybeebash"
+    BACKPACK_DIR="$BASE_DIR/backpack"
 
+    # --- User specific directories ---
+    TARGET_HOME=$(getent passwd "$USER" | cut -d: -f6)
+    echo "$ICON_DIR User directory detected at: $TARGET_HOME"
+    USER_CONFIG_DIR="$TARGET_HOME/.config/honeybeebash"
+    USER_LOCAL_DIR="$TARGET_HOME/.local/share/honeybeebash"
 
-# --- User specific directories ---
-TARGET_HOME=$(getent passwd "$USER" | cut -d: -f6)
-echo "$ICON_DIR User directory detected at: $TARGET_HOME"
-USER_CONFIG_DIR="$TARGET_HOME/.config/honeybeebash"
-USER_LOCAL_DIR="$TARGET_HOME/.local/share/honeybeebash"
+elif [[ -n "$installpath" ]]; then
+    INSTALL_LOCATION="$installpath"
+    echo "$ICON_DIR Installing into : $installpath"
+    read -p "$ICON_QUESTION Is this correct ? (Yes,  No): " installpath_verify
+    installpath_verify=${installpath_verify,,} 
+    if [[ "$installpath_verify" != "y" && "$installpath_verify" != "yes" ]]; then
+        exit 1
+    fi
+    if [[ ! -d "$installpath" ]]; then
+        mkdir -p "$installpath"
+    fi
+    # --- Paths ---
+    BIN_DIR="/usr/local/bin"
+    BASE_DIR="$installpath"
+    BACKPACK_DIR="$BASE_DIR/backpack"
+
+    # --- User specific directories ---
+    USER_CONFIG_DIR="$installpath/config"
+    USER_LOCAL_DIR="$installpath"
+
+else
+    echo "$ICON_FAIL Error: You must confirm the installation path."
+    exit 1
+fi
+# Create a bin dir if none avail
+if [[ ! -d "$BIN_DIR" ]]; then
+    mkdir -p "$BIN_DIR"
+fi
 
 
 # --- Required common tools ---
@@ -225,6 +358,12 @@ if [[ -f tools/crlf.sh ]]; then
     tools/crlf.sh bee.sh monitor.sh install/* tools/* config/* models/* 
 fi
 
+# Assure no CRLF line endings occur
+dos2unix bee.sh monitor.sh detector.py
+dos2unix tools/*
+dos2unix install/*
+dos2unix models/*
+dos2unix config-default/bee.conf-default config-default/notify.conf-default
 
 # Directory creation
 echo "$ICON_DIR Creating directories..."
@@ -271,8 +410,16 @@ for src_item in "models/"*; do
     fi
 done
 
+# Copy install and uninstall scripts
+mkdir -p "$USER_LOCAL_DIR/install"
+cp -f install/* "$USER_LOCAL_DIR/install/"
+chown $USER:$GROUP "$USER_LOCAL_DIR/install"
+chown $USER:$GROUP "$USER_LOCAL_DIR/install/"*
+chmod 750 "$USER_LOCAL_DIR/install"
+chmod 640 "$USER_LOCAL_DIR/install/"*
+chmod +x "$USER_LOCAL_DIR/install/"*
 
-# Copying default run config
+# Copying default run config files
 cp -f config-default/* "$USER_CONFIG_DIR/"
 cp "$USER_CONFIG_DIR/bee.conf-default" "$USER_CONFIG_DIR/bee.conf"
 
@@ -305,6 +452,12 @@ chmod 750 "$BASE_DIR/tools"
 chmod 750 "$BASE_DIR/tools/"*
 chmod +x "$BASE_DIR/tools/"*
 
+# Copy default config for uninstall.sh support
+cp -rf "config-default" "$USER_LOCAL_DIR/"
+chown $USER:$GROUP "$USER_LOCAL_DIR/config-default"
+chown $USER:$GROUP "$USER_LOCAL_DIR/config-default/"*
+chmod 750 "$USER_LOCAL_DIR/config-default"
+chmod 640 "$USER_LOCAL_DIR/config-default/"*
 
 # Create the symlink so 'honeybee' works in the terminal and crontab
 if [ -L "/usr/local/bin/bee" ]; then
@@ -317,48 +470,6 @@ fi
 echo " "
 
 
-# --- OS Detection ---
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    OS_FAMILY=$ID
-else
-    OS_FAMILY=$(uname -s | tr '[:upper:]' '[:lower:]')
-fi
-echo "$ICON_BEE Sensing Environment: $OS_FAMILY detected."
-
-case "$OS_FAMILY" in
-    ubuntu|debian|raspberrypi|kali|raspbian|pop)
-        UPDATE_CMD="apt-get update --allow-releaseinfo-change"
-        INSTALL_CMD="apt-get install -y --allow-unauthenticated" 
-        ;;
-
-    fedora)
-        UPDATE_CMD="dnf check-update"
-        INSTALL_CMD="dnf install -y" 
-        ;;
-
-    rhel|almalinux|rocky|centos)
-        echo "$ICON_DOWNLOAD Ensuring EPEL repository for Enterprise Linux..."
-        dnf install -y epel-release --nogpgcheck >/dev/null 2>&1
-        UPDATE_CMD="dnf check-update"
-        INSTALL_CMD="dnf install -y --nogpgcheck" 
-        ;;
-
-    arch|manjaro)
-        UPDATE_CMD="pacman -Sy" 
-        INSTALL_CMD="pacman -S --noconfirm" 
-        ;;
-
-    opensuse*|tumbleweed|sles|suse)
-        UPDATE_CMD="zypper refresh"
-        INSTALL_CMD="zypper install -y"
-        ;;
-
-    *)
-        echo -e "\n$ICON_FAIL Unknown OS ($OS_FAMILY). Install dependencies manually: ${DEPENDENCIES[*]}"
-        exit 1 
-        ;;
-esac
 
 # --- INTERACTIVE INSTALLATION ---
 
@@ -376,7 +487,7 @@ echo " "
 echo "$ICON_PACKAGE Applying '$UPDATE_CMD; $INSTALL_CMD' for installing packages."
 echo " "
 
-read -p "$ICON_QUESTION Continue with installation ? (Yes/No/Quit): " confirm
+read -p "$ICON_QUESTION Continue with installation into $BASE_DIR ? (Yes/No/Quit): " confirm
 confirm=${confirm,,} 
 if [[ "$confirm" == "q" ]] || [[ "$confirm" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
@@ -511,7 +622,7 @@ if [[ "$install_sci" == "q" ]] || [[ "$install_sci" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
     exit 0
 elif [[ "$install_sci" == "y" ]] || [[ "$install_sci" == "yes" ]]; then
-    sudo -u "$USER" install/install-scikit.sh "$USER" "$GROUP" "$LLM_MODEL"
+    sudo -u "$USER" install/install-scikit.sh "$USER" "$GROUP" "$LLM_MODEL" "$BASE_DIR"
     ENABLE_SCIKIT="true"
 fi
 
@@ -519,8 +630,8 @@ fi
 # --- Store LAN API URL ---
 echo " "
 read -p "$ICON_QUESTION  Enter your LAN LLM Model API URL incl. port (Q for quit or Enter to skip): " localai_url
-localai_url=${localai_url:-}
-if [[ "$localai_url" == "q" ]] || [[ "$localai_url" == "quit" ]]; then
+localai_url_check=${localai_url,,}
+if [[ "$localai_url_check" == "q" ]] || [[ "$localai_url_check" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
     exit 0
 fi
@@ -555,7 +666,7 @@ fi
 if [[ "$LLM_MODEL" == "googleapi" ]]; then
     echo " "
     read -p "$ICON_QUESTION Continue to install required google-genai into the Backpack? (Yes/No/Quit): " install_genai
-    install_genai=${install_genai:-}
+    install_genai=${install_genai,,}
     
     if [[ "$install_genai" == "q" ]] || [[ "$install_genai" == "quit" ]]; then
         echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
@@ -564,14 +675,14 @@ if [[ "$LLM_MODEL" == "googleapi" ]]; then
         echo "$ICON_DOWNLOAD Fetching Google Generative AI nectar..."
         
         # Attempt 1: Standard upgrade/install
-        if sudo -u "$USER" "$PIP_BIN" install -q -U google-genai; then
+        if sudo -u "$USER" CARGO_BUILD_JOBS=1 RUSTFLAGS="-C codegen-units=1 -C opt-level=z" "$PIP_BIN" install -q -U google-genai; then
             echo "$ICON_SUCCES google-genai integrated into the backpack."
         else
             # Attempt 2: If first fail, purge cache and try without cache
             echo "$ICON_SYNC Hash mismatch or download error detected. Cleaning nectar cache and retrying..."
             sudo -u "$USER" "$PIP_BIN" cache purge > /dev/null 2>&1
-            
-            if sudo -u "$USER" "$PIP_BIN" install -q --no-cache-dir google-genai; then
+
+            if sudo -u "$USER" CARGO_BUILD_JOBS=1 RUSTFLAGS="-C codegen-units=1 -C opt-level=z" "$PIP_BIN" install -q --no-cache-dir google-genai; then
                 echo "$ICON_SUCCES google-genai integrated after cache purge."
             else
                 echo -e "\n$ICON_FAIL Failed to install google-genai even after cache purge.\n"
@@ -587,11 +698,11 @@ fi
 # --- Store Gemini API key ---
 echo " "
 read -p "$ICON_INPUT Enter your Gemini API key (Q for quit or Enter to skip): " gemini_key
-if [[ "${gemini_key,,}" == "q" || "${gemini_key,,}" == "quit" ]]; then
+gemini_key_check=${gemini_key,,}
+if [[ "$gemini_key_check" == "q" || "$gemini_key_check" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
     exit 0
 fi
-gemini_key=${gemini_key:-}
 sed -i '/GEMINI_API_KEY/d' "$USER_LOCAL_DIR/models/googleapi.conf"
 sed -i '/GEMINI_API_KEY/d' "$USER_LOCAL_DIR/models/geminiflash.conf"
 echo "GEMINI_API_KEY=\"$gemini_key\"" >> "$USER_LOCAL_DIR/models/googleapi.conf"
@@ -688,7 +799,7 @@ echo "You can enable this later by completing \$HOME/.config/honeybeebash/notify
 
 echo " "
 read -p "$ICON_QUESTION Configure notifications by mail ? (Yes/No): " configure_email
-configure_email=${configure_email:-}
+configure_email=${configure_email,,}
 if [[ "$configure_email" == "q" ]] || [[ "$configure_email" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
     exit 0
@@ -801,10 +912,10 @@ fi
 
 # Tip on joining the venv 
 if [ "$PYTHON_FROM" != "SYSTEM" ]; then
-    if [[ -f "/opt/honeybeebash/backpack/bin/activate" ]]; then
+    if [[ -f "$BASE_DIR/backpack/bin/activate" ]]; then
         echo " "
         echo "Enter the Virtual Environment to use Bee." 
-        echo "source \"/opt/honeybeebash/backpack/bin/activate\""
+        echo "source \"$BASE_DIR/backpack/bin/activate\""
         echo " "
     fi
 fi

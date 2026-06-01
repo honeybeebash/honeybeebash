@@ -44,33 +44,6 @@ fi
 
 
 
-# --- If sudo active then detect real user for profiles ---
-USER="$(whoami)"
-if [ -n "${SUDO_USER:-}" ]; then
-    REAL_USER="$SUDO_USER"
-else
-    REAL_USER="$USER"
-fi
-
-REAL_GROUP=$(id -gn $REAL_USER)
-if [[ -z "$REAL_GROUP" ]]; then
-    REAL_GROUP="$REAL_USER"
-fi
-
-REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-if [[ -z "$REAL_HOME" ]]; then
-    REAL_HOME="$HOME"
-fi
-
-# --- Paths ---
-BASE_DIR="/opt/honeybeebash"
-BACKPACK_DIR="$BASE_DIR/backpack"
-
-# --- User specific paths ---
-USER_CONFIG_DIR="$REAL_HOME/.config/honeybeebash"
-USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
-
-
 # --- Work vars --- 
 BEE_VERSION="1.0.5"
 JOB_DIR=""
@@ -186,17 +159,67 @@ JOB MANAGEMENT OPTIONS:
 "
 }
 
+# Debug essentials
+CYAN=""
+NC=""
+DEBUG_LEVEL=0
+textdebug() {
+    local TYPE="${1:-0}"
+    local L1="${2:-}"
+    if [[ "$DEBUG_LEVEL" -gt "$TYPE" ]]; then 
+        echo -e "${CYAN}[DEBUG]:${NC} $L1"; 
+    fi
+}
 
 
+# --- If sudo active then detect real user for profiles ---
+USER="$(whoami)"
+if [ -n "${SUDO_USER:-}" ]; then
+    REAL_USER="$SUDO_USER"
+else
+    REAL_USER="$USER"
+fi
+
+REAL_GROUP=$(id -gn $REAL_USER)
+if [[ -z "$REAL_GROUP" ]]; then
+    REAL_GROUP="$REAL_USER"
+fi
+
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+if [[ -z "$REAL_HOME" ]]; then
+    REAL_HOME="$HOME"
+fi
+
+# --- Paths ---
+BASE_DIR="/opt/honeybeebash"
+BACKPACK_DIR="$BASE_DIR/backpack"
+
+# --- User specific paths ---
+USER_CONFIG_DIR="$REAL_HOME/.config/honeybeebash"
+USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
+
+# Detect custom path, if config is next to bee.sh then its a custom path installation
+REAL_SCRIPT_PATH=$(readlink -f "$0")
+SCRIPT_DIR=$(dirname "$REAL_SCRIPT_PATH")
+if [[ -f "$SCRIPT_DIR/config/bee.conf" ]]; then
+    # --- Paths ---
+    BASE_DIR="$SCRIPT_DIR"
+    BACKPACK_DIR="$BASE_DIR/backpack"
+    # --- User specific paths ---
+    USER_CONFIG_DIR="$SCRIPT_DIR/config"
+    USER_LOCAL_DIR="$SCRIPT_DIR"
+    textdebug 0 "..running from $BASE_DIR"
+else    
+    textdebug 0 echo "..running from $BASE_DIR"
+fi
 
 if [[ ! -d "$USER_CONFIG_DIR" ]] || [[ ! -d "$USER_LOCAL_DIR" ]]; then
-    end_program 1 "No config or workspace could be detected. Is this the right user ? If so then reinstall for this user."
+    end_program 1 "No config or workspace could be detected. Is this the right directory with bee.sh ? If so then reinstall for this user."
 fi
 
 
 
 # --- PARAMETER PARSER ---
-DEBUG_LEVEL=0
 VERBOSE_LEVEL=0
 TEST_MODE="false"
 EXPORT_SET=""
@@ -240,7 +263,7 @@ while [[ $# -gt 0 ]]; do
             shift 1
             ;;
         --venv)
-            BACKPACK_DIR="/opt/honeybeebash/backpack"
+            BACKPACK_DIR="$BASE_DIR/backpack"
             ACTIVATE_PATH=$(find "$BACKPACK_DIR" -name "activate" -path "*/bin/*" | head -n 1)
             if [[ -f "$ACTIVATE_PATH" ]]; then
                 echo -e "\nTo enter the Virtual Environment and use its tools, run:\nsource $ACTIVATE_PATH"
@@ -456,25 +479,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-# Debug essentials
-CYAN=""
-NC=""
-textdebug() {
-    local TYPE="${1:-0}"
-    local L1="${2:-}"
-    if [[ "$DEBUG_LEVEL" -gt "$TYPE" ]]; then 
-        echo -e "${CYAN}[DEBUG]:${NC} $L1"; 
-    fi
-}
-
 # --- Early catch for Bee update
 if [[ "$DO_UPDATE" != "false" ]]; then
     if [[ "$DO_UPDATE" == "edge" ]]; then
         DLFILE="edge.zip"
-        textdebug 0 "Updating Bee-edge ..."
+        textdebug 0 "Updating Bee-edge into $BASE_DIR ..."
     else
         DLFILE="honeybeebash.zip"
-        textdebug 0 "Updating Bee ..."
+        textdebug 0 "Updating Bee into $BASE_DIR ..."
     fi
 
     DOWNLOAD="https://honeybeebash.com/downloads/$DLFILE"
@@ -502,11 +514,17 @@ if [[ "$DO_UPDATE" != "false" ]]; then
     textdebug 2 "Updating Bee scripts ..."
     cd honeybeebash/src
     dos2unix bee.sh monitor.sh detector.py tools/*
-    cp -f bee.sh /opt/honeybeebash/bee.sh
-    cp -f monitor.sh /opt/honeybeebash/monitor.sh
-    cp -f detector.py /opt/honeybeebash/detector.py
-    cp -f tools/* /opt/honeybeebash/tools/
-
+    cp -f bee.sh "$BASE_DIR/bee.sh"
+    cp -f monitor.sh "$BASE_DIR/monitor.sh"
+    cp -f detector.py "$BASE_DIR/detector.py"
+    cp -f install/* "$BASE_DIR/install/"
+    cp -f tools/* "$BASE_DIR/tools/"
+    
+    if [[ "$DO_UPDATE" == "edge" ]]; then
+        echo "Updated Bee-edge into $BASE_DIR"
+    else
+        echo "Updated Bee into $BASE_DIR"
+    fi
 
     VERSION_CHECK=$(bee --version 2>&1)
     if [[ $? -eq 0 && "$VERSION_CHECK" == *"HoneyBee Bash version"* ]]; then
@@ -813,55 +831,62 @@ texterror() {
 
 
 get_lan_ip() {
-    # 1. Try modern 'ip' command (Standard on almost all modern Linux distros)
+    # 1. Try modern 'ip' command (Best: Routing aware, handles multiple NICs perfectly)
+    textdebug 2 "Detecting LAN via command ip ..."
     if command -v ip >/dev/null 2>&1; then
         ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}'
         return
     fi
 
-    # 2. Try classic 'hostname' command (Common on Debian/Ubuntu/RedHat)
+    # 2. Try Python 3 (Excellent socket-based routing fallback)
+    textdebug 2 "Detecting LAN via command python3 ..."
+    if command -v python3 >/dev/null 2>&1; then
+        # FIXED: Changed 'python' to 'python3' inside the execution string
+        python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('1.1.1.1', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null
+        return
+    fi
+
+    # 3. Try classic 'hostname' command
+    textdebug 2 "Detecting LAN via command hostname ..."
     if command -v hostname >/dev/null 2>&1; then
         hostname -I | awk '{print $1}'
         return
     fi
 
-    # 3. Try legacy 'ifconfig' (Common on older systems/CentOS 6)
+    # 4. Try legacy 'ifconfig' 
+    textdebug 2 "Detecting LAN via command ifconfig ..."
     if command -v ifconfig >/dev/null 2>&1; then
-        ifconfig | awk '/inet / && !/127.0.0.1/ {print $2; exit}' | sed 's/addr://'
+        # FIXED: Cleaned up to extract the IP cleanly across both old and new formats
+        ifconfig 2>/dev/null | awk '/inet / && !/127.0.0.1/ {gsub(/addr:/, "", $2); print $2; exit}'
         return
     fi
 
-    # 4. Try Python (Common in minimal containers running app stacks)
-    if command -v python3 >/dev/null 2>&1; then
-        python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('1.1.1.1', 80)); print(s.getsockname()[0]); s.close()" 2>/dev/null
-        return
-    fi
-
-    # 5. The Ultimate Zero-Dependency Fallback (For stripped Docker containers)
-    # Reads the hex routing table, converts the default gateway interface's hex IP to decimals.
-    # This structure (/proc/net/route) hasn't changed fundamentally in decades.
+    # 5. Zero-Dependency Fallback via /proc/net/route (Gateway Interface Picker)
+    textdebug 2 "Detecting LAN via route interface ..."
     if [ -f /proc/net/route ]; then
-        local hex_ip
-        hex_ip=$(awk 'NR==2 {print $3}' /proc/net/route)
-        if [ -not -z "$hex_ip" ] && [ "$hex_ip" != "00000000" ]; then
-            # Convert 8-char Hex string (little endian) to IP format
-            printf "%d.%d.%d.%d\n" \
-                "$((16#${hex_ip:6:2}))" \
-                "$((16#${hex_ip:4:2}))" \
-                "$((16#${hex_ip:2:2}))" \
-                "$((16#${hex_ip:0:2}))"
+        # Instead of parsing the hex IP (which gives the gateway, not local IP), 
+        # we find the default active interface name (e.g., eth0, wlan0) from column 1
+        local iface
+        iface=$(awk '$2 == "00000000" {print $1; exit}' /proc/net/route)
+        
+        # Now we grab that specific interface's IP from /proc/net/dev if possible,
+        # or fallback to standard loopback if we can't find it.
+        if [ -n "$iface" ] && command -v ip >/dev/null 2>&1; then
+            ip -o -4 addr show "$iface" | awk '{split($4,a,"/"); print a[1]; exit}'
             return
         fi
     fi
     
     # If all else fails
+    textdebug 2 "Detecting LAN as default ..."
     echo "127.0.0.1"
 }
 
+
 # Internal variables
 
-textdebug 0 "Initializing..."
-textline 2 "Initializing Honeybee Bash agent... ${ORANGE}($(get_eyes "fly"))${NC}"
+textdebug 0 "Initializing ..."
+textline 2 "Initializing Honeybee Bash agent ... ${ORANGE}($(get_eyes "fly"))${NC}"
 
 
 # Model parameter init
@@ -879,35 +904,53 @@ USE_ML_GUARD="false"
 ML_GUARD="unknown"
 
 # System and environment
-LINEAGE=$(grep -iP '^(ID_LIKE|ID)=' /etc/os-release | cut -d= -f2 | tr -d '"' | head -n 1)  # Linux Family
-HOSTNAME=$(cat /etc/hostname)
+textdebug 0 "Detecting OS ..."
+OS="unknown"
+HOSTNAME="unknown"1
+OS_FAMILY="unknown"
+if command -v getprop &> /dev/null; then
+    LINEAGE="debian"
+    OS_FAMILY="debian"
+    OS="android"
+    OS_VER=$(getprop ro.build.version.release)
+
+elif [[ -f "/etc/os-release" ]]; then
+    LINEAGE=$(grep -iP '^(ID_LIKE|ID)=' /etc/os-release | cut -d= -f2 | tr -d '"' | head -n 1)  # Linux Family
+    OS=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
+    OS=${OS// /_}
+
+    # Search for primary lineage keywords first
+    OS_FAMILY=$(grep -Ei "debian|fedora|arch|suse" /etc/os-release | head -n 1 | grep -Eoi "debian|fedora|arch|suse" | tr '[:upper:]' '[:lower:]')
+
+    # 2. Refined Fallback / Branch Identification
+    if grep -qiE "rhel|centos|alma|rocky" /etc/os-release; then
+        # Even if "fedora" is mentioned as a platform ID, 
+        # if it's an Enterprise clone, we label it REDHAT for the extra EPEL steps.
+        OS_FAMILY="redhat"
+    fi
+fi
+if [[ -f "/etc/hostname" ]]; then
+    HOSTNAME=$(cat /etc/hostname)
+elif command -v getprop &> /dev/null; then
+    HOSTNAME=$(getprop net.hostname)
+fi
 SYSTEM=$(uname -a)
-OS=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
-OS=${OS// /_}
+textdebug 2 "Detecting User ..."
 CURRENT_USER=$(whoami)
 PATH_ENV=$PATH
 SHELL_TYPE=$SHELL
 IS_SUDO=$(sudo -n true 2>/dev/null && echo "YES" || echo "NO")
+textdebug 2 "Detecting WAN ..."
 WAN_IP=$(curl -s ifconfig.me)
+textdebug 2 "Detecting LAN ..."
+set +e
 LAN_IP=$(get_lan_ip)
+set -e
 
-# Search for primary lineage keywords first
-OS_FAMILY=$(grep -Ei "debian|fedora|arch|suse" /etc/os-release | head -n 1 | grep -Eoi "debian|fedora|arch|suse" | tr '[:upper:]' '[:lower:]')
-
-# 2. Refined Fallback / Branch Identification
-if grep -qiE "rhel|centos|alma|rocky" /etc/os-release; then
-    # Even if "fedora" is mentioned as a platform ID, 
-    # if it's an Enterprise clone, we label it REDHAT for the extra EPEL steps.
-    OS_FAMILY="redhat"
-elif [[ -z "$OS_FAMILY" ]]; then
-    # Catch-all for generic linux or unknown OS
-    OS_FAMILY="unknown"
-fi
 
 # Final check: If still empty, the distro is unsupported by HiveHub
 if [[ -z "$OS_FAMILY" ]]; then
-    echo "$ICON_CRITICAL Unsupported Distro. Local mode only."
-    OS_FAMILY=""
+    end_program 1 "$ICON_CRITICAL Unsupported Distro $OS."
 fi
 
 textdebug 0 "Detected distro $OS_FAMILY"
@@ -1827,6 +1870,8 @@ remote_googleai(){
         # In case of an error
         if [[ "$RESPONSE" == *"SDK Error: 503 UNAVAILABLE"* ]] || [[ "$RESPONSE" == *"GenerateRequestsPerDayPerProjectPerModel"* ]] ; then
             RESPONSE=$(echo "$RESPONSE" | tr "'" '"')
+        elif [[ "$RESPONSE" == *"SDK Error:"* ]]; then
+            end_program 1 "GoogleAPI SDK returned an error. $RESPONSE"
         fi
 
         if [[ "$RESPONSE" == *"ModuleNotFoundError: No module named"* ]]; then
