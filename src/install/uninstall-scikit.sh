@@ -4,27 +4,38 @@
 
 USER="$1"
 if [[ -z "$USER" ]]; then
-    echo "🐝 Syntax: ./uninstall-scikit.sh {USER}"
+    echo "Syntax: ./uninstall-scikit.sh {USER}"
     exit 1
 fi
 
-BACKPACK_DIR="/opt/honeybeebash/backpack"
-TARGET_HOME=$(getent passwd "$USER" | cut -d: -f6)
-USER_CONFIG_DIR="$TARGET_HOME/.config/honeybeebash"
+REAL_SCRIPT_PATH=$(readlink -f "$0")
+SCRIPT_DIR=$(dirname "$REAL_SCRIPT_PATH")
+if [[ -f "$SCRIPT_DIR/config/bee.conf" ]]; then
+    # --- Paths (Custom path) ---
+    BASE_DIR=$(dirname "$SCRIPT_DIR")
+    USER_CONFIG_DIR="$BASE_DIR/config"
+    USER_LOCAL_DIR="$BASE_DIR"
+    BACKPACK_DIR="$BASE_DIR"
+    
+else
+    BACKPACK_DIR="/opt/honeybeebash/backpack"
+    TARGET_HOME=$(getent passwd "$USER" | cut -d: -f6)
+    USER_CONFIG_DIR="$TARGET_HOME/.config/honeybeebash"
+fi
 
-echo "🧹 Sanitizing the HoneyBee environment..."
+echo "Sanitizing the HoneyBeeBash environment..."
 
 # 1. Remove the virtual environment (The Backpack)
 if [ -d "$BACKPACK_DIR" ]; then
-    echo "🗑️ Removing the Backpack: $BACKPACK_DIR"
+    echo "Removing the Backpack: $BACKPACK_DIR"
     sudo rm -rf "$BACKPACK_DIR"
 else
-    echo "ℹ️ No backpack found at $BACKPACK_DIR."
+    echo "No backpack found at $BACKPACK_DIR."
 fi
 
 # 2. Revert the config file
 if [[ -f "$USER_CONFIG_DIR/bee.conf" ]]; then
-    echo "📝 Disabling SciKit in bee.conf..."
+    echo "Disabling SciKit in bee.conf..."
     # Remove the enable line
     sed -i '/ENABLE_SCIKIT/d' "$USER_CONFIG_DIR/bee.conf"
     echo 'ENABLE_SCIKIT="false"' >> "$USER_CONFIG_DIR/bee.conf"
@@ -33,4 +44,4 @@ fi
 # 3. Optional: Clear Python cache files
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
 
-echo "✅ Environment reset. You are ready for a clean install test."
+echo "Environment has been reset. You can continue. "
