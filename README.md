@@ -11,7 +11,7 @@
 
 
 ## Project Info
-**Version:** 1.0.5
+**Version:** 1.0.6
 **Author:** M.D.P de Clerck ([mike@clerck.nl](mailto:mike@clerck.nl))  
 **License:** [GNU General Public License v3](LICENSE)
 
