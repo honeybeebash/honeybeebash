@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.6
+# @version   1.0.7
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -45,7 +45,7 @@ fi
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.6"
+BEE_VERSION="1.0.7"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -498,7 +498,7 @@ if [[ "$DO_UPDATE" != "false" ]]; then
 
     # Download zip
     textdebug 2 "Downloading ZIP ..."
-    wget "$DOWNLOAD"
+    curl -L -O "$DOWNLOAD"
     if [[ ! -f "$DLFILE" ]]; then
         end_program 1 "$ICON_FAIL Could not download from $DOWNLOAD"
     fi
@@ -513,12 +513,19 @@ if [[ "$DO_UPDATE" != "false" ]]; then
     # Copy files
     textdebug 2 "Updating Bee scripts ..."
     cd honeybeebash/src
-    dos2unix bee.sh monitor.sh detector.py tools/*
+    dos2unix bee.sh monitor.sh detector.py install/* tools/*
     cp -f bee.sh "$BASE_DIR/bee.sh"
     cp -f monitor.sh "$BASE_DIR/monitor.sh"
     cp -f detector.py "$BASE_DIR/detector.py"
-    cp -f install/* "$BASE_DIR/install/"
     cp -f tools/* "$BASE_DIR/tools/"
+    if [[ ! -d "$BASE_DIR/install" ]]; then
+        mkdir -p "$BASE_DIR/install"
+        if [[ "$USER" == "root" ]]; then
+            chown $USER:$GROUP "$BASE_DIR/install"
+        fi
+        chmod 750 "$BASE_DIR/install"
+    fi
+    cp -f install/* "$BASE_DIR/install/"
     
     if [[ "$DO_UPDATE" == "edge" ]]; then
         echo "Updated Bee-edge into $BASE_DIR"
@@ -1637,7 +1644,7 @@ import_dataset() {
         fi
 
         mkdir -p "$IMPORT_DIR" 
-        wget -q -O "$ZIP_FILE" "$HIVEHUB_API_URL?a=import&u=$HIVEHUB_USER&distro=$OS_FAMILY&os=$OS&job=$IMPORT_SET"
+        curl -sSL -o "$ZIP_FILE" "$HIVEHUB_API_URL?a=import&u=$HIVEHUB_USER&distro=$OS_FAMILY&os=$OS&job=$IMPORT_SET"
         
         if grep -q "^ERROR:" "$ZIP_FILE"; then
             ERR_MSG=$(cat "$ZIP_FILE")
@@ -3292,7 +3299,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                         bee_signal "$JOB_NAME" "RUNNING" 
 
                         set +e
-                        RESULT=$($SUDO_CMD "$COMMAND" 2>&1)
+                        RESULT=$($SUDO_CMD "$COMMAND" 2>&1 | tr -d '\0')
                         EXIT_CODE=$?
                         set -e
 
