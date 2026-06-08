@@ -120,7 +120,7 @@ CORE COMMAND OPTIONS:
   --verbose=0-2           Show less output (0) or more (2) [CONFLICT] [WARNING] [NOTICE]
   --silent                Show no output  
   --debug=0-3             Set debug level (0 none - 3 full)  
-  --venv                  Prints out the command to enter the python virtual environment
+  --venv or --backpack    Prints out the command to enter the python virtual environment
   --update                Obtains the latest version and installs the scripts only for immediate use
   --exit                  Exit after processing parameter commands
 
