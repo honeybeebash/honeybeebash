@@ -262,7 +262,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_LEVEL="${DEBUG_LEVEL:-0}"
             shift 1
             ;;
-        --venv)
+        --venv|--backpack)
             BACKPACK_DIR="$BASE_DIR/backpack"
             ACTIVATE_PATH=$(find "$BACKPACK_DIR" -name "activate" -path "*/bin/*" | head -n 1)
             if [[ -f "$ACTIVATE_PATH" ]]; then
@@ -517,6 +517,7 @@ if [[ "$DO_UPDATE" != "false" ]]; then
     cp -f bee.sh "$BASE_DIR/bee.sh"
     cp -f monitor.sh "$BASE_DIR/monitor.sh"
     cp -f detector.py "$BASE_DIR/detector.py"
+    cp -f models/*.py "$USER_LOCAL_DIR/models/"
     cp -f tools/* "$BASE_DIR/tools/"
     if [[ ! -d "$BASE_DIR/install" ]]; then
         mkdir -p "$BASE_DIR/install"
@@ -526,7 +527,7 @@ if [[ "$DO_UPDATE" != "false" ]]; then
         chmod 750 "$BASE_DIR/install"
     fi
     cp -f install/* "$BASE_DIR/install/"
-    
+    chmod +x "$BASE_DIR/bee.sh" "$BASE_DIR/monitor.sh" "$BASE_DIR/install/"* "$BASE_DIR/tools/"*
     if [[ "$DO_UPDATE" == "edge" ]]; then
         echo "Updated Bee-edge into $BASE_DIR"
     else
@@ -906,6 +907,7 @@ SELECTED_MODEL_NAME=""
 SELECTED_CONTEXT_SIZE=""
 SELECTED_MODEL_RETRY_TIMEOUT=5
 SELECTED_MODEL_BASE_URL=""
+
 GEMINI_API_KEY=""
 USE_ML_GUARD="false"
 ML_GUARD="unknown"
@@ -922,20 +924,24 @@ if command -v getprop &> /dev/null; then
     OS_VER=$(getprop ro.build.version.release)
 
 elif [[ -f "/etc/os-release" ]]; then
+    textdebug 2 "Detecting OS name ..."
     LINEAGE=$(grep -iP '^(ID_LIKE|ID)=' /etc/os-release | cut -d= -f2 | tr -d '"' | head -n 1)  # Linux Family
     OS=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
     OS=${OS// /_}
 
     # Search for primary lineage keywords first
-    OS_FAMILY=$(grep -Ei "debian|fedora|arch|suse" /etc/os-release | head -n 1 | grep -Eoi "debian|fedora|arch|suse" | tr '[:upper:]' '[:lower:]')
+    textdebug 2 "Detecting OS family ..."
+    OS_FAMILY=$(grep -Ei "debian|fedora|arch|suse|alpine|slackware|gentoo" /etc/os-release | head -n 1 | grep -Eoi -i "debian|fedora|arch|suse|alpine|slackware|gentoo" | tr '[:upper:]' '[:lower:]' || echo "")
 
     # 2. Refined Fallback / Branch Identification
+    textdebug 2 "Detecting OS family Redhat ..."
     if grep -qiE "rhel|centos|alma|rocky" /etc/os-release; then
         # Even if "fedora" is mentioned as a platform ID, 
         # if it's an Enterprise clone, we label it REDHAT for the extra EPEL steps.
         OS_FAMILY="redhat"
     fi
 fi
+textdebug 0 "Detecting System configuration ..."
 if [[ -f "/etc/hostname" ]]; then
     HOSTNAME=$(cat /etc/hostname)
 elif command -v getprop &> /dev/null; then
@@ -1070,9 +1076,9 @@ JOB_DIR="$USER_LOCAL_DIR/workspace/$JOB_NAME/$PACKAGE_VERSION"
 
 if [[ "$DO_ASKONCE" == "false" ]]; then
     if [[ "$PARAM_PROMPT" != "" ]]; then
-        textbox 0 "${CYAN}» Launching as : bee.sh \"$PARAM_PROMPT\" \"$PARAM_JOB\"" "rolling"
+        textbox 0 "${CYAN}» Launching on $OS_FAMILY as : bee.sh \"$PARAM_PROMPT\" \"$PARAM_JOB\"" "rolling"
     else
-        textbox 0 "${CYAN}» Launching bee.sh" "rolling"
+        textbox 0 "${CYAN}» Launching bee.sh on $OS_FAMILY" "rolling"
     fi
 fi
 
@@ -1403,6 +1409,9 @@ if [[ "$DO_DROP" == "true" ]]; then
             rm -rf "$USER_LOCAL_DIR/workspace/$TMP_JOB_NAME/$TMP_JOB_VERSION" 
             beelog "${CYAN}» Bee dropped job '$USER_LOCAL_DIR/workspace/$TMP_JOB_NAME:$TMP_JOB_VERSION'${NC}"
             textline 0 "${WHITE}Bee dropped job $USER_LOCAL_DIR/workspace/$TMP_JOB_NAME/$TMP_JOB_VERSION ${CYAN}($(get_eyes "chill"))${NC}"
+            if [ -z "$(find $USER_LOCAL_DIR/workspace/$TMP_JOB_NAME -maxdepth 0 -empty)" ]; then
+                rm -rf "$USER_LOCAL_DIR/workspace/$TMP_JOB_NAME"
+            fi
         else
             texterror "${RED}Could not find job directory $TMP_JOB_NAME:$TMP_JOB_VERSION ${RED}($(get_eyes "angry"))${NC}"
         fi
@@ -2830,7 +2839,7 @@ if [[ "$DO_ASKONCE" == "true" ]]; then
 elif [[ "$DO_ASK" == "true" ]]; then
     textbox 0 "${CYAN}» Answering question ${NC}" "fly"
 
-elif [[ "$IS_NEW_JOB" == "true" ]]; then
+elif [[ "$IS_NEW_JOB" == "true" || "$DO_IMPORT" != "false" ]]; then
     # Start New Job 
     if [[ "$INPUT" == "" ]] || [[ "$INPUT" == "Continue" ]]; then
         if [[ "$JOB_NAME" == "default" ]]; then
@@ -3170,7 +3179,6 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
 
                                 if [[ -n "${key_pressed:-}" ]]; then
                                     REPLY="$key_pressed"
-                                    break
                                 fi
                             fi
 

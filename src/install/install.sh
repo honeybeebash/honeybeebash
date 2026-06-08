@@ -98,6 +98,17 @@ if ! command -v sudo &> /dev/null; then
         ubuntu|debian|raspberrypi|kali|raspbian|pop)
             apt-get update && apt-get install -y sudo 
             ;;
+        alpine)
+            apk update && apk add --no-cache sudo
+            ;;
+        slackware)
+            slackpkg update
+            slackpkg install -default_answer=yes sudo
+            ;;
+        gentoo)
+            emerge --sync --quiet
+            emerge --ask=n app-admin/sudo
+            ;;
         fedora)
             # Handle old vs modern Red Hat derivatives
             if [ "$ID" = "fedora" ] || [ "$VERSION_MAJOR" -ge 8 ]; then
@@ -136,6 +147,18 @@ case "$OS_FAMILY" in
     ubuntu|debian|raspberrypi|kali|raspbian|pop)
         UPDATE_CMD="apt-get update --allow-releaseinfo-change"
         INSTALL_CMD="apt-get install -y --allow-unauthenticated" 
+        ;;
+    alpine)
+        UPDATE_CMD="apk update"
+        INSTALL_CMD="apk add --no-cache"
+        ;;
+    slackware)
+        UPDATE_CMD="slackpkg update"
+        INSTALL_CMD="slackpkg install -default_answer=yes"
+        ;;
+    gentoo)
+        UPDATE_CMD="emerge --sync --quiet"
+        INSTALL_CMD="emerge --ask=n"
         ;;
     fedora)
         UPDATE_CMD="dnf check-update"

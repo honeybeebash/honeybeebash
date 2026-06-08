@@ -4,6 +4,11 @@
 #
 # Weighted Random Forest / Cost-Sensitive Learning
 # Weighted Supervised Learning Pipeline using Bag-of-Words.
+import warnings
+# Silence both the Python 3.9 EOL warnings and the Google SDK text-parts warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 import os
 import sys
 import signal

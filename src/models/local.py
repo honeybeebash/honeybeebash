@@ -1,5 +1,10 @@
 # models/local.py
 # Local Ollama api
+import warnings
+# Silence both the Python 3.9 EOL warnings and the Google SDK text-parts warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 import urllib.request
 import json
 import os

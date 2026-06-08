@@ -83,6 +83,18 @@ case "$OS_FAMILY" in
         UPDATE_CMD="apt-get update --allow-releaseinfo-change"
         INSTALL_CMD="apt-get install -y --allow-unauthenticated" 
         ;;
+    alpine)
+        UPDATE_CMD="apk update"
+        INSTALL_CMD="apk add --no-cache"
+        ;;
+    slackware)
+        UPDATE_CMD="slackpkg update"
+        INSTALL_CMD="slackpkg install -default_answer=yes"
+        ;;
+    gentoo)
+        UPDATE_CMD="emerge --sync --quiet"
+        INSTALL_CMD="emerge --ask=n"
+        ;;
     fedora)
         UPDATE_CMD="dnf check-update"
         INSTALL_CMD="dnf install -y"

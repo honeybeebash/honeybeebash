@@ -1,6 +1,17 @@
 # models/googleapi.py
 # The google gemini AI API 
 # Requires: pip install -q -U google-genai
+import logging
+import warnings
+
+# 1. Silence Python's built-in deprecation warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# 2. Force Google's package loggers to ONLY show CRITICAL errors (hiding WARNINGS)
+logging.getLogger("google").setLevel(logging.CRITICAL)
+logging.getLogger("google.genai").setLevel(logging.CRITICAL)
+
 import sys
 import os
 from google import genai
