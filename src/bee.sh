@@ -918,12 +918,12 @@ textline(){
 
     TAG=""
     if [[ "$TYPE" == 1 ]]; then
-        TAG="${ORANGE}[WARNING]${NC}"
+        TAG="${ORANGE}[WARNING]${NC} "
     elif [[ "$TYPE" == 2 ]]; then
-        TAG="${WHITE}[NOTICE]${NC}"
+        TAG="${WHITE}[NOTICE]${NC} "
     fi
 
-    echo -e "$TAG $L1"
+    echo -e "$TAG$L1"
     if [ -n "$L2" ]; then
         echo -e "${L2}"
     fi
