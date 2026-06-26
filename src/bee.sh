@@ -26,7 +26,7 @@ fi
 # BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.7
+# @version   1.0.8
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -45,7 +45,7 @@ fi
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.7"
+BEE_VERSION="1.0.8"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
