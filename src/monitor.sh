@@ -42,6 +42,8 @@ USER_LOCAL_DIR="$REAL_HOME/.local/share/honeybeebash"
 source "$USER_CONFIG_DIR/bee.conf"
 
 # --- Defaults ---
+MONITOR_INTERVAL=3
+TARGET_PID=""
 TAB_NAME="DASHBOARD"
 max_lines=25
 max_coloms=80

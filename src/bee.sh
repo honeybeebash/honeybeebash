@@ -120,7 +120,7 @@ CORE COMMAND OPTIONS:
   --verbose=0-2           Show less output (0) or more (2) [CONFLICT] [WARNING] [NOTICE]
   --silent                Show no output  
   --debug=0-3             Set debug level (0 none - 3 full)  
-  --venv                  Prints out the command to enter the python virtual environment
+  --venv or --backpack    Prints out the command to enter the python virtual environment
   --update                Obtains the latest version and installs the scripts only for immediate use
   --exit                  Exit after processing parameter commands
 
@@ -158,6 +158,13 @@ JOB MANAGEMENT OPTIONS:
   --clean                 Clear current job logs
 "
 }
+
+
+PARAM="${1:-}"
+if [[ "$PARAM" == "--version" ]]; then
+    echo "HoneyBee Bash version $BEE_VERSION" 
+    end_program
+fi
 
 # Debug essentials
 CYAN=""
@@ -208,9 +215,9 @@ if [[ -f "$SCRIPT_DIR/config/bee.conf" ]]; then
     # --- User specific paths ---
     USER_CONFIG_DIR="$SCRIPT_DIR/config"
     USER_LOCAL_DIR="$SCRIPT_DIR"
-    textdebug 0 "..running from $BASE_DIR"
+    echo "[NOTICE] Running from custom dir $BASE_DIR"
 else    
-    textdebug 0 echo "..running from $BASE_DIR"
+    echo "[NOTICE] Running from $BASE_DIR"
 fi
 
 if [[ ! -d "$USER_CONFIG_DIR" ]] || [[ ! -d "$USER_LOCAL_DIR" ]]; then
@@ -231,6 +238,7 @@ TARGET_JOB=""
 DROP_JOB=""
 DO_BEE_DELAY=""
 DO_CAP_RESPONSE="false"
+DO_CONFIG="false"
 DO_UPDATE="false"
 DO_EXPORT="false"
 DO_IMPORT="false"
@@ -251,7 +259,7 @@ while [[ $# -gt 0 ]]; do
 
     case $1 in
         ?|--help)    show_help; end_program ;;
-        --version)   echo "HoneyBee Bash version $BEE_VERSION"; end_program 0  ;;
+        --version)   echo "HoneyBee Bash version $BEE_VERSION"; end_program ;;
         --test)      TEST_MODE="true";  shift  ;;
         --mode=*)    DO_MODE="${1#*=}";  shift 1 ;;
         --verbose=*) VERBOSE_LEVEL="${1#*=}";  shift 1 ;;
@@ -262,7 +270,11 @@ while [[ $# -gt 0 ]]; do
             DEBUG_LEVEL="${DEBUG_LEVEL:-0}"
             shift 1
             ;;
-        --venv)
+        --config)
+            DO_CONFIG="true"
+            shift 1
+            ;;
+        --venv|--backpack)
             BACKPACK_DIR="$BASE_DIR/backpack"
             ACTIVATE_PATH=$(find "$BACKPACK_DIR" -name "activate" -path "*/bin/*" | head -n 1)
             if [[ -f "$ACTIVATE_PATH" ]]; then
@@ -513,20 +525,21 @@ if [[ "$DO_UPDATE" != "false" ]]; then
     # Copy files
     textdebug 2 "Updating Bee scripts ..."
     cd honeybeebash/src
-    dos2unix bee.sh monitor.sh detector.py install/* tools/*
+    sed -i 's/\r//' bee.sh monitor.sh detector.py install/* tools/* models/*
     cp -f bee.sh "$BASE_DIR/bee.sh"
     cp -f monitor.sh "$BASE_DIR/monitor.sh"
     cp -f detector.py "$BASE_DIR/detector.py"
+    cp -f models/*.py "$USER_LOCAL_DIR/models/"
     cp -f tools/* "$BASE_DIR/tools/"
     if [[ ! -d "$BASE_DIR/install" ]]; then
         mkdir -p "$BASE_DIR/install"
         if [[ "$USER" == "root" ]]; then
-            chown $USER:$GROUP "$BASE_DIR/install"
+            chown $USER:$REAL_GROUP "$BASE_DIR/install"
         fi
         chmod 750 "$BASE_DIR/install"
     fi
     cp -f install/* "$BASE_DIR/install/"
-    
+    chmod +x "$BASE_DIR/bee.sh" "$BASE_DIR/monitor.sh" "$BASE_DIR/install/"* "$BASE_DIR/tools/"*
     if [[ "$DO_UPDATE" == "edge" ]]; then
         echo "Updated Bee-edge into $BASE_DIR"
     else
@@ -542,6 +555,96 @@ if [[ "$DO_UPDATE" != "false" ]]; then
     end_program 0 "Use the new Bee and Monitor now. Or run install/install.sh for a full update."
 fi
 
+
+
+# System and environment
+textdebug 0 "Detecting OS ..."
+HOSTNAME="unknown"
+LINEAGE=""
+OS="unknown"
+OS_VARIANT=""
+VERSION_MAJOR=""
+LLM_MODEL=""
+MODE_AUTOMATIC=""
+
+textdebug 2 "Detecting OS name ..."
+
+if command -v getprop &> /dev/null; then
+    LINEAGE="debian"
+    OS="android"
+    OS_VARIANT=$(getprop ro.build.version.release)
+
+elif [[ -f "/etc/os-release" ]]; then
+    OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    OS=${OS// /_} 
+    OS_ID=$(grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    OS_ID_LIKE=$(grep '^ID_LIKE=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    VARIANT_ID=$(grep '^VARIANT_ID=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    VERSION_ID=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    VERSION_MAJOR=${VERSION_ID%%.*}
+
+    echo "Detecting OS family ..."
+
+    if [[ "$OS_ID" =~ ^(arch|archarm|steamos|manjaro)$ ]] || [[ "$OS_ID_LIKE" =~ ^(arch|archarm|steamos|manjaro)$ ]]; then
+        LINEAGE="arch"
+
+    elif [[ "$OS_ID" =~ ^(alpine|postmarketos|adelie)$ ]] || [[ "$OS_ID_LIKE" =~ ^(alpine|postmarketos|adelie)$ ]]; then
+        LINEAGE="alpine"
+    
+    elif [[ "$OS_ID" =~ ^(debian|ubuntu|raspberrypi|kali|raspbian|pop)$ ]] || [[ "$OS_ID_LIKE" =~ ^(debian|ubuntu|raspberrypi|kali|raspbian|pop)$ ]]; then
+        LINEAGE="debian"
+
+    elif [[ "$OS_ID" == "fedora" ]]; then
+        # Explicitly match known Fedora immutable variants
+        if [[ "$VARIANT_ID" =~ ^(coreos|silverblue|kinoite|sericea|onyx|iot)$ ]]; then
+            LINEAGE="atomic"
+            OS_VARIANT="fedora-$VARIANT_ID" 
+        else
+            LINEAGE="fedora"
+            OS_VARIANT="standard"
+        fi
+
+    elif [[ "$OS_ID" =~ ^(gentoo|calculate|pentoo)$ ]] || [[ "$OS_ID_LIKE" =~ ^(gentoo|calculate|pentoo)$ ]]; then
+        LINEAGE="gentoo"
+
+    elif [[ "$OS_ID" =~ ^(rhel|centos|almalinux|rocky)$ ]] || [[ "$OS_ID_LIKE" =~ ^(rhel|centos|almalinux|rocky)$ ]]; then
+        if [[ "$VARIANT_ID" =~ ^(coreos|rhcos)$ ]]; then
+            LINEAGE="atomic"
+            OS_VARIANT="redhat-$VARIANT_ID" 
+        else
+            LINEAGE="redhat"
+            OS_VARIANT="standard"
+        fi
+
+    elif [[ "$OS_ID" =~ ^(slackware|zenwalk|salix)$ ]] || [[ "$OS_ID_LIKE" =~ ^(slackware|zenwalk|salix)$ ]]; then
+        LINEAGE="slackware"
+        
+    elif [[ "$OS_ID" =~ ^(opensuse.*|tumbleweed|sles|suse)$ ]] || [[ "$OS_ID_LIKE" =~ ^(opensuse.*|tumbleweed|sles|suse)$ ]]; then
+        LINEAGE="suse"
+    fi
+
+fi
+
+# Final Fallback Engine (Handles unrecognized Linux distros, macOS, BSD, etc.)
+if [[ -n "$LINEAGE" ]]; then 
+    echo "OS lineage $LINEAGE detected from $OS_ID."
+else
+    UNAME_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    echo "Detecting Lineage by uname '$UNAME_OS' ..."
+    if [[ -n "$OS" ]]; then
+        # If /etc/os-release existed but didn't match our known trees
+        LINEAGE="$OS"
+    else
+        # If /etc/os-release didn't exist at all (e.g. macOS, FreeBSD, old Android)
+        OS="$UNAME_OS"
+        LINEAGE="$UNAME_OS"
+    fi
+fi
+
+if [[ -z "$LINEAGE" ]]; then
+    echo "$ICON_FAIL Error: OS Lineage cannot be detected for OS '$OS'. "
+    exit 1
+fi
 
 
 # --- Detect System Python (The Foundation) ---
@@ -594,7 +697,7 @@ if [[ -f "$USER_CONFIG_DIR/bee.conf" ]]; then
     APPLIED_MODEL_MAX_CHARACTERS="$FILTER_TRIGGER" # Legacy support
     if [[ -n "$DO_MODE" ]]; then
         DO_MODE="${DO_MODE^^}"
-        if [[ "$DO_MODE" == "RETRICTIVE" || "$DO_MODE" == "PERMISSIVE" || "$DO_MODE" == "ADAPTIVE" || "$DO_MODE" == "MANUAL" ]]; then            
+        if [[ "$DO_MODE" == "RESTRICTIVE" || "$DO_MODE" == "PERMISSIVE" || "$DO_MODE" == "ADAPTIVE" || "$DO_MODE" == "MANUAL" ]]; then            
             textdebug 0 "Running in custom automation mode : $DO_MODE"
             MODE_AUTOMATION="$DO_MODE"
         fi
@@ -815,12 +918,12 @@ textline(){
 
     TAG=""
     if [[ "$TYPE" == 1 ]]; then
-        TAG="${ORANGE}[WARNING]${NC}"
+        TAG="${ORANGE}[WARNING]${NC} "
     elif [[ "$TYPE" == 2 ]]; then
-        TAG="${WHITE}[NOTICE]${NC}"
+        TAG="${WHITE}[NOTICE]${NC} "
     fi
 
-    echo -e "$TAG $L1"
+    echo -e "$TAG$L1"
     if [ -n "$L2" ]; then
         echo -e "${L2}"
     fi
@@ -906,36 +1009,12 @@ SELECTED_MODEL_NAME=""
 SELECTED_CONTEXT_SIZE=""
 SELECTED_MODEL_RETRY_TIMEOUT=5
 SELECTED_MODEL_BASE_URL=""
+
 GEMINI_API_KEY=""
 USE_ML_GUARD="false"
 ML_GUARD="unknown"
 
-# System and environment
-textdebug 0 "Detecting OS ..."
-OS="unknown"
-HOSTNAME="unknown"1
-OS_FAMILY="unknown"
-if command -v getprop &> /dev/null; then
-    LINEAGE="debian"
-    OS_FAMILY="debian"
-    OS="android"
-    OS_VER=$(getprop ro.build.version.release)
-
-elif [[ -f "/etc/os-release" ]]; then
-    LINEAGE=$(grep -iP '^(ID_LIKE|ID)=' /etc/os-release | cut -d= -f2 | tr -d '"' | head -n 1)  # Linux Family
-    OS=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
-    OS=${OS// /_}
-
-    # Search for primary lineage keywords first
-    OS_FAMILY=$(grep -Ei "debian|fedora|arch|suse" /etc/os-release | head -n 1 | grep -Eoi "debian|fedora|arch|suse" | tr '[:upper:]' '[:lower:]')
-
-    # 2. Refined Fallback / Branch Identification
-    if grep -qiE "rhel|centos|alma|rocky" /etc/os-release; then
-        # Even if "fedora" is mentioned as a platform ID, 
-        # if it's an Enterprise clone, we label it REDHAT for the extra EPEL steps.
-        OS_FAMILY="redhat"
-    fi
-fi
+textdebug 0 "Detecting System configuration ..."
 if [[ -f "/etc/hostname" ]]; then
     HOSTNAME=$(cat /etc/hostname)
 elif command -v getprop &> /dev/null; then
@@ -956,11 +1035,11 @@ set -e
 
 
 # Final check: If still empty, the distro is unsupported by HiveHub
-if [[ -z "$OS_FAMILY" ]]; then
+if [[ -z "$LINEAGE" ]]; then
     end_program 1 "$ICON_CRITICAL Unsupported Distro $OS."
 fi
 
-textdebug 0 "Detected distro $OS_FAMILY"
+textdebug 0 "Detected distro $LINEAGE"
 
 
 # Define your sudo prefix based on your toggle
@@ -971,6 +1050,30 @@ else
     SUDO_CMD="bash -c"
     SUDO=""
 fi
+
+# Show config information then exit
+if [[ "$DO_CONFIG" == "true" ]]; then
+    echo "HoneyBeeBash Configuration:"
+    echo "VERSION=$BEE_VERSION"
+    echo "BASE_DIR=$BASE_DIR"
+    echo "BACKPACK_DIR=$BACKPACK_DIR"
+    echo "USER_CONFIG_DIR=$USER_CONFIG_DIR"
+    echo "USER_LOCAL_DIR=$USER_LOCAL_DIR"
+    echo "REAL_SCRIPT_PATH=$REAL_SCRIPT_PATH"
+    echo "SCRIPT_DIR=$SCRIPT_DIR"
+    echo "LINEAGE=$LINEAGE"
+    echo "OS_VARIANT=$OS_VARIANT"
+    echo "OS=$OS"
+    echo "SYSTEM=$SYSTEM"
+    echo "USER=$CURRENT_USER"
+    echo "PATH_ENV=$PATH_ENV"
+    echo "HOSTNAME=$HOSTNAME"
+    echo "LAN_IP=$LAN_IP"
+    echo "SELECTED_MODEL_NAME=$SELECTED_MODEL_NAME"
+
+    end_program
+fi
+
 
 textdebug 0 "Integrity checks..."
 
@@ -1019,8 +1122,8 @@ if [[ "$ENABLE_SCIKIT" == "true" ]]; then
         USE_ML_GUARD="true"
         ML_GUARD="${CYAN}ACTIVE${NC}"
         if [[ ! -f "$BASE_DIR/detector.py" ]]; then
-            textdebug 0 "SciKit integrity : Missing detector.py"
-            end_program 1 "The detector.py detection script is missing"
+            textdebug 0 "SciKit integrity : Missing detector.py in $BASE_DIR"
+            end_program 1 "The detector.py detection script is missing in $BASE_DIR"
         fi
 
     else
@@ -1070,9 +1173,9 @@ JOB_DIR="$USER_LOCAL_DIR/workspace/$JOB_NAME/$PACKAGE_VERSION"
 
 if [[ "$DO_ASKONCE" == "false" ]]; then
     if [[ "$PARAM_PROMPT" != "" ]]; then
-        textbox 0 "${CYAN}» Launching as : bee.sh \"$PARAM_PROMPT\" \"$PARAM_JOB\"" "rolling"
+        textbox 0 "${CYAN}» Launching on $LINEAGE as : bee.sh \"$PARAM_PROMPT\" \"$PARAM_JOB\"" "rolling"
     else
-        textbox 0 "${CYAN}» Launching bee.sh" "rolling"
+        textbox 0 "${CYAN}» Launching bee.sh on $LINEAGE" "rolling"
     fi
 fi
 
@@ -1403,6 +1506,9 @@ if [[ "$DO_DROP" == "true" ]]; then
             rm -rf "$USER_LOCAL_DIR/workspace/$TMP_JOB_NAME/$TMP_JOB_VERSION" 
             beelog "${CYAN}» Bee dropped job '$USER_LOCAL_DIR/workspace/$TMP_JOB_NAME:$TMP_JOB_VERSION'${NC}"
             textline 0 "${WHITE}Bee dropped job $USER_LOCAL_DIR/workspace/$TMP_JOB_NAME/$TMP_JOB_VERSION ${CYAN}($(get_eyes "chill"))${NC}"
+            if [ -z "$(find $USER_LOCAL_DIR/workspace/$TMP_JOB_NAME -maxdepth 0 -empty)" ]; then
+                rm -rf "$USER_LOCAL_DIR/workspace/$TMP_JOB_NAME"
+            fi
         else
             texterror "${RED}Could not find job directory $TMP_JOB_NAME:$TMP_JOB_VERSION ${RED}($(get_eyes "angry"))${NC}"
         fi
@@ -1533,13 +1639,13 @@ export_dataset() {
             textline 0 "$ICON_LAUNCH Uploading to HiveHub..."
 
             textdebug 2 "ZIP: $ZIP_FILE"
-            textdebug 2 "API: $HIVEHUB_API_URL?a=export&u=$HIVEHUB_USER&k=$HIVEHUB_API_KEY&distro=$OS_FAMILY&os=$OS&job=$EXPORT_SET&text=$EXPORT_TEXT"
+            textdebug 2 "API: $HIVEHUB_API_URL?a=export&u=$HIVEHUB_USER&k=$HIVEHUB_API_KEY&distro=$LINEAGE&os=$OS&job=$EXPORT_SET&text=$EXPORT_TEXT"
 
             EXPORT_TEXT="${EXPORT_TEXT// /+}"
-            textdebug 2 "CMD: curl -s -F \"file=@$ZIP_FILE\" \"$HIVEHUB_API_URL?a=export&u=$HIVEHUB_USER&k=$HIVEHUB_API_KEY&distro=$OS_FAMILY&os=$OS&job=$EXPORT_SET&text=$EXPORT_TEXT\""
+            textdebug 2 "CMD: curl -s -F \"file=@$ZIP_FILE\" \"$HIVEHUB_API_URL?a=export&u=$HIVEHUB_USER&k=$HIVEHUB_API_KEY&distro=$LINEAGE&os=$OS&job=$EXPORT_SET&text=$EXPORT_TEXT\""
 
             set +e
-            RESULT=$(curl -s -F "file=@$ZIP_FILE" "$HIVEHUB_API_URL?a=export&u=$HIVEHUB_USER&k=$HIVEHUB_API_KEY&distro=$OS_FAMILY&os=$OS&job=$EXPORT_SET&text=$EXPORT_TEXT")
+            RESULT=$(curl -s -F "file=@$ZIP_FILE" "$HIVEHUB_API_URL?a=export&u=$HIVEHUB_USER&k=$HIVEHUB_API_KEY&distro=$LINEAGE&os=$OS&job=$EXPORT_SET&text=$EXPORT_TEXT")
             set -e
 
             textdebug 0 "$RESULT"
@@ -1630,7 +1736,7 @@ import_dataset() {
         cleanup_workspace
 
         # Retrieve the package
-        textdebug 0 "Requesting u=$HIVEHUB_USER&distro=$OS_FAMILY&os=$OS&job=$IMPORT_SET"
+        textdebug 0 "Requesting u=$HIVEHUB_USER&distro=$LINEAGE&os=$OS&job=$IMPORT_SET"
         textline 0 "$ICON_DOWNLOAD Downloading $IMPORT_SET..."
 
         IMPORT_DIR="$JOB_DIR/tmp"
@@ -1644,7 +1750,7 @@ import_dataset() {
         fi
 
         mkdir -p "$IMPORT_DIR" 
-        curl -sSL -o "$ZIP_FILE" "$HIVEHUB_API_URL?a=import&u=$HIVEHUB_USER&distro=$OS_FAMILY&os=$OS&job=$IMPORT_SET"
+        curl -sSL -o "$ZIP_FILE" "$HIVEHUB_API_URL?a=import&u=$HIVEHUB_USER&distro=$LINEAGE&os=$OS&job=$IMPORT_SET"
         
         if grep -q "^ERROR:" "$ZIP_FILE"; then
             ERR_MSG=$(cat "$ZIP_FILE")
@@ -1655,8 +1761,8 @@ import_dataset() {
         # On success unpack the archive
         if [[ -f "$ZIP_FILE" ]]; then
             textdebug 0 "Unpacking $ZIP_FILE"
-            textdebug 0 "Distro: $OS_FAMILY\nJob: $JOB_NAME:$PACKAGE_VERSION"
-            textline 2 "Distro: $OS_FAMILY\nJob: $JOB_NAME:$PACKAGE_VERSION" > "$JOB_DIR/config/PACKAGE_VERSION"
+            textdebug 0 "Distro: $LINEAGE\nJob: $JOB_NAME:$PACKAGE_VERSION"
+            textline 2 "Distro: $LINEAGE\nJob: $JOB_NAME:$PACKAGE_VERSION" > "$JOB_DIR/config/PACKAGE_VERSION"
             textline 2 "$ICON_DOWNLOAD Unpacking $IMPORT_SET..."
 
             # Unzip -o overwrites without prompting, -d specifies destination (Unpacks to a job directory)
@@ -1733,7 +1839,7 @@ fi
 
 ENV="Hostname: $HOSTNAME
 SYSTEM=$SYSTEM
-FAMILY=$OS_FAMILY
+FAMILY=$LINEAGE
 OS=$OS
 CURRENT_USER=$CURRENT_USER
 PATH_ENV=$PATH_ENV
@@ -2830,7 +2936,7 @@ if [[ "$DO_ASKONCE" == "true" ]]; then
 elif [[ "$DO_ASK" == "true" ]]; then
     textbox 0 "${CYAN}» Answering question ${NC}" "fly"
 
-elif [[ "$IS_NEW_JOB" == "true" ]]; then
+elif [[ "$IS_NEW_JOB" == "true" || "$DO_IMPORT" != "false" ]]; then
     # Start New Job 
     if [[ "$INPUT" == "" ]] || [[ "$INPUT" == "Continue" ]]; then
         if [[ "$JOB_NAME" == "default" ]]; then
@@ -3170,7 +3276,6 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
 
                                 if [[ -n "${key_pressed:-}" ]]; then
                                     REPLY="$key_pressed"
-                                    break
                                 fi
                             fi
 

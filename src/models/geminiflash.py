@@ -1,3 +1,16 @@
+# models/geminiflash.py
+# Remote Generative Google Flash api
+import logging
+import warnings
+
+# 1. Silence Python's built-in deprecation warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# 2. Force Google's package loggers to ONLY show CRITICAL errors (hiding WARNINGS)
+logging.getLogger("google").setLevel(logging.CRITICAL)
+logging.getLogger("google.genai").setLevel(logging.CRITICAL)
+
 import urllib.request
 import json
 import os

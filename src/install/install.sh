@@ -65,37 +65,115 @@ if (( BASH_VERSINFO[0] < 4 )); then
 fi
 
 
-# Detect OS
-OS_FAMILY=""
-if command -v getprop &> /dev/null; then
-    echo "Android device detected. Adjusting configuration..."
-    OS_FAMILY="android"
-    VERSION_MAJOR=""
 
-elif [ -f /etc/os-release ]; then
-    . /etc/os-release
+echo "$ICON_SEARCH Detecting OS ..."
+
+HOSTNAME="unknown"
+LINEAGE=""
+OS="unknown"
+OS_VARIANT=""
+VERSION_MAJOR=""
+
+echo "$ICON_SEARCH Detecting OS name ..."
+
+if command -v getprop &> /dev/null; then
+    LINEAGE="debian"
+    OS="android"
+    OS_VARIANT=$(getprop ro.build.version.release)
+
+elif [[ -f "/etc/os-release" ]]; then
+    OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    OS=${OS// /_} 
+    OS_ID=$(grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    OS_ID_LIKE=$(grep '^ID_LIKE=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    VARIANT_ID=$(grep '^VARIANT_ID=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    VERSION_ID=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '\042\047' || true)
+    VERSION_MAJOR=${VERSION_ID%%.*}
+
+    echo "$ICON_SEARCH Detecting OS family ..."
+
+    if [[ "$OS_ID" =~ ^(arch|archarm|steamos|manjaro)$ ]] || [[ "$OS_ID_LIKE" =~ ^(arch|archarm|steamos|manjaro)$ ]]; then
+        LINEAGE="arch"
+
+    elif [[ "$OS_ID" =~ ^(alpine|postmarketos|adelie)$ ]] || [[ "$OS_ID_LIKE" =~ ^(alpine|postmarketos|adelie)$ ]]; then
+        LINEAGE="alpine"
     
-    # Extract the major version number (e.g., "7.9" or "8" or "9.2" becomes "7", "8", "9")
-    # Removing quotes if present in VERSION_ID
-    VERSION_MAJOR=$(echo "${VERSION_ID:-0}" | tr -d '"' | cut -d. -f1)
-    OS_FAMILY="$ID"
-    
-else
-    OS_FAMILY=$(uname -s | tr '[:upper:]' '[:lower:]')
-    VERSION_MAJOR=0
+    elif [[ "$OS_ID" =~ ^(debian|ubuntu|raspberrypi|kali|raspbian|pop)$ ]] || [[ "$OS_ID_LIKE" =~ ^(debian|ubuntu|raspberrypi|kali|raspbian|pop)$ ]]; then
+        LINEAGE="debian"
+
+    elif [[ "$OS_ID" == "fedora" ]]; then
+        # Explicitly match known Fedora immutable variants
+        if [[ "$VARIANT_ID" =~ ^(coreos|silverblue|kinoite|sericea|onyx|iot)$ ]]; then
+            LINEAGE="atomic"
+            OS_VARIANT="fedora-$VARIANT_ID" 
+        else
+            LINEAGE="fedora"
+            OS_VARIANT="standard"
+        fi
+
+    elif [[ "$OS_ID" =~ ^(gentoo|calculate|pentoo)$ ]] || [[ "$OS_ID_LIKE" =~ ^(gentoo|calculate|pentoo)$ ]]; then
+        LINEAGE="gentoo"
+
+    elif [[ "$OS_ID" =~ ^(rhel|centos|almalinux|rocky)$ ]] || [[ "$OS_ID_LIKE" =~ ^(rhel|centos|almalinux|rocky)$ ]]; then
+        if [[ "$VARIANT_ID" =~ ^(coreos|rhcos)$ ]]; then
+            LINEAGE="atomic"
+            OS_VARIANT="redhat-$VARIANT_ID" 
+        else
+            LINEAGE="redhat"
+            OS_VARIANT="standard"
+        fi
+
+    elif [[ "$OS_ID" =~ ^(slackware|zenwalk|salix)$ ]] || [[ "$OS_ID_LIKE" =~ ^(slackware|zenwalk|salix)$ ]]; then
+        LINEAGE="slackware"
+        
+    elif [[ "$OS_ID" =~ ^(opensuse.*|tumbleweed|sles|suse)$ ]] || [[ "$OS_ID_LIKE" =~ ^(opensuse.*|tumbleweed|sles|suse)$ ]]; then
+        LINEAGE="suse"
+    fi
+
 fi
-if [[ -z "$OS_FAMILY" ]]; then
-    echo "$ICON_FAIL Error: OS cannot be detected. Force it in /etc/os-release"
+
+# Final Fallback Engine (Handles unrecognized Linux distros, macOS, BSD, etc.)
+if [[ -n "$LINEAGE" ]]; then 
+    echo "OS lineage $LINEAGE detected from $OS_ID."
+else
+    UNAME_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    echo "$ICON_SEARCH Detecting Lineage by uname '$UNAME_OS' ..."
+    if [[ -n "$OS" ]]; then
+        # If /etc/os-release existed but didn't match our known trees
+        LINEAGE="$OS"
+    else
+        # If /etc/os-release didn't exist at all (e.g. macOS, FreeBSD, old Android)
+        OS="$UNAME_OS"
+        LINEAGE="$UNAME_OS"
+    fi
+fi
+
+if [[ -z "$LINEAGE" ]]; then
+    echo "$ICON_FAIL Error: OS Lineage cannot be detected for OS '$OS'. "
     exit 1
 fi
-    
+
+echo "$ICON_SUCCES Sensing Environment: $LINEAGE:$OS_VARIANT detected from $OS_ID."
+
 
 # Check and install 'sudo' if missing in a root/minimal container
 if ! command -v sudo &> /dev/null; then
     echo "$ICON_CRITICAL 'sudo' is missing from this environment. Attempting emergency bootstrap..."
 
-    case "$OS_FAMILY" in
-        ubuntu|debian|raspberrypi|kali|raspbian|pop)
+    case "$LINEAGE" in
+        alpine)
+            apk update && apk add --no-cache sudo
+            ;;
+        android)
+            pkg install -y sudo 
+            ;;
+        arch)
+            pacman -Syu --noconfirm sudo 
+            ;;
+        atomic)
+            rpm-ostree upgrade && rpm-ostree install sudo
+            ;;
+        debian)
             apt-get update && apt-get install -y sudo 
             ;;
         fedora)
@@ -106,7 +184,23 @@ if ! command -v sudo &> /dev/null; then
                 yum install -y sudo
             fi
             ;;
-        rhel|almalinux|rocky|centos) 
+        gentoo)
+            echo "Syncing Portage tree..."
+            emerge --sync --quiet
+            
+            # Use direct execution to avoid Bash variable parsing bugs
+            echo "Attempting initial sudo installation..."
+            if ! emerge --ask=n --autounmask=y --autounmask-write=y app-admin/sudo; then
+                echo "Auto-accepting configuration updates..."
+                
+                # --automode -5 tells etc-update to automatically merge all auto-cleared updates
+                etc-update --automode -5
+                
+                echo "Retrying sudo installation..."
+                emerge --ask=n --autounmask=y --autounmask-write=y app-admin/sudo
+            fi
+            ;;
+        redhat) 
             # Handle old vs modern Red Hat derivatives
             if [ "$VERSION_MAJOR" -ge 8 ]; then
                 dnf install -y sudo
@@ -114,34 +208,114 @@ if ! command -v sudo &> /dev/null; then
                 yum install -y sudo
             fi
             ;;
-        arch|manjaro)
-            pacman -Sy --noconfirm sudo 
+        slackware)
+            echo "n" | slackpkg -default_answer=y update
+            echo "y" | slackpkg install -default_answer=yes sudo
             ;;
-        opensuse*|tumbleweed|sles|suse)
+        suse)
             zypper install -y sudo 
             ;;
-        android)
-            pkg install -y sudo 
-            ;;
-        *) 
-            echo -e "\n$ICON_FAIL Unknown OS ($OS_FAMILY). Install Sudo manually: ${DEPENDENCIES[*]}"
+        *)
+            echo -e "\n$ICON_FAIL Unknown OS ($LINEAGE). Install Sudo manually: ${DEPENDENCIES[*]}"
             exit 1 
             ;;
     esac
 fi
-echo "$ICON_BEE Sensing Environment: $OS_FAMILY detected."
 
+install_pip() {
+    $SUDO $PYTHON_BIN -m ensurepip --default-pip &> /dev/null || \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_BIN
+}
 
-case "$OS_FAMILY" in
-    ubuntu|debian|raspberrypi|kali|raspbian|pop)
+install_pip_slackware() {
+    if [[ ! -f "$BACKPACK_DIR/bin/pip" ]]; then
+        echo "$ICON_PACKAGE Backpack pip missing. Analyzing Python version..."
+        
+        # 1. Grab the exact major.minor version dynamically inside the function
+        local PY_VERSION
+        PY_VERSION=$($SYSTEM_PYTHON -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        
+        # 2. Build the correct URL dynamically
+        local PIP_URL
+        if [[ $(echo -e "3.10\n$PY_VERSION" | sort -V | head -n1) == "$PY_VERSION" && "$PY_VERSION" != "3.10" ]]; then
+            # If the version is strictly older than 3.10, point to the legacy directory
+            PIP_URL="https://bootstrap.pypa.io/pip/$PY_VERSION/get-pip.py"
+        else
+            PIP_URL="https://bootstrap.pypa.io/get-pip.py"
+        fi
+        
+        # 3. Download and bootstrap pip
+        echo "$ICON_PACKAGE Dynamic Bootstrap from: $PIP_URL"
+        curl -sS "$PIP_URL" | "$BACKPACK_DIR/bin/python3"
+    fi
+}
+
+# --- Required common tools ---
+DEPENDENCIES=(sed bc awk curl unzip jq zip screen python3 $PIP_PKG $VENV_PKG openssl)
+
+UPDATE_CMD=""
+INSTALL_CMD=""
+ACCEPT_CMD=""
+PIP_PKG=""
+VENV_PKG=""
+INSTALL_FLAGS=""
+INSTALL_PIP="install_pip"
+INSTALL_PIP_PARAMS=""
+case "$LINEAGE" in
+    alpine)
+        UPDATE_CMD="apk update"
+        INSTALL_CMD="apk add --no-cache"
+        PIP_PKG="py3-pip"
+        VENV_PKG="py3-virtualenv"
+        ;;
+    android)
+        UPDATE_CMD="pkg update"
+        INSTALL_CMD="pkg install -y"
+        PIP_PKG="python3-pip"
+        VENV_PKG="python3-venv"
+        ;;
+    atomic)
+        UPDATE_CMD="rpm-ostree upgrade"
+        INSTALL_CMD="rpm-ostree install --apply-live"
+        PIP_PKG="python3-pip"
+        VENV_PKG="python3-virtualenv"
+        ;;
+    arch) 
+        UPDATE_CMD="pacman -Syu" 
+        INSTALL_CMD="pacman -S --noconfirm" 
+        PIP_PKG="python-pip"
+        VENV_PKG="python-virtualenv"
+        ;;
+    debian)
         UPDATE_CMD="apt-get update --allow-releaseinfo-change"
         INSTALL_CMD="apt-get install -y --allow-unauthenticated" 
+        PIP_PKG="python3-pip"
+        VENV_PKG="python3-venv"
         ;;
     fedora)
         UPDATE_CMD="dnf check-update"
         INSTALL_CMD="dnf install -y"
+		INSTALL_FLAGS='CARGO_BUILD_JOBS=1 RUSTFLAGS="-C codegen-units=1 -C opt-level=z"'
+        PIP_PKG="python3-pip"
+        VENV_PKG="python3-virtualenv"
         ;;
-    rhel|almalinux|rocky|centos) 
+    gentoo)
+        DEPENDENCIES=(sys-devel/bc sys-apps/gawk net-misc/curl app-arch/unzip sys-apps/sed app-misc/jq app-arch/zip app-misc/screen dev-lang/python dev-python/pip dev-python/virtualenv dev-libs/openssl)
+        UPDATE_CMD="emerge-webrsync"
+        INSTALL_CMD="emerge --ask=n --update --deep --autounmask=y --autounmask-write=y"
+        ACCEPT_CMD="etc-update --automode -5"
+        PIP_PKG="dev-python/pip"
+        VENV_PKG="dev-python/virtualenv"
+        ;;
+    slackware)
+        UPDATE_CMD="echo 'n' | slackpkg -default_answer=y update"
+        INSTALL_CMD="echo 'y' | slackpkg -default_answer=yes install"
+        INSTALL_PIP="install_pip_slackware"
+        INSTALL_PIP_PARAMS="--without-pip"
+        PIP_PKG="python3-pip"
+        VENV_PKG="python3-venv"
+        ;;
+    redhat) 
         # Check if we are on RHEL 8+ / modern systems or RHEL 7 / legacy systems
         if [ "$VERSION_MAJOR" -ge 8 ]; then
             echo "$ICON_DOWNLOAD Ensuring EPEL repository for Enterprise Linux..."
@@ -159,21 +333,17 @@ case "$OS_FAMILY" in
             # If your script uses 'set -e', you might want to append '|| true' to UPDATE_CMD
             INSTALL_CMD="yum install -y --nogpgcheck" 
         fi
+        PIP_PKG="python3-pip"
+        VENV_PKG="python3-virtualenv"
         ;;
-    arch|manjaro) 
-        UPDATE_CMD="pacman -Sy" 
-        INSTALL_CMD="pacman -S --noconfirm" 
-        ;;
-    opensuse*|tumbleweed|sles|suse)
+    suse)
         UPDATE_CMD="zypper refresh"
         INSTALL_CMD="zypper install -y"
-        ;;
-    android)
-        UPDATE_CMD="pkg update"
-        INSTALL_CMD="pkg install -y"
+        PIP_PKG="python3-pip"
+        VENV_PKG="python3-venv"
         ;;
     *) 
-        echo -e "\n$ICON_FAIL Unknown OS ($OS_FAMILY). Install dependencies manually: ${DEPENDENCIES[*]}"
+        echo -e "\n$ICON_FAIL Unknown OS ($LINEAGE). Install dependencies manually: ${DEPENDENCIES[*]}"
         exit 1 
         ;;
 esac
@@ -252,7 +422,12 @@ if [[ -z "$GROUP" ]]; then
 fi
 
 # --- Run with Sudo ---
-if [[ "$ID" != "android" ]]; then
+SUDO=""
+if [[ "$ID" == "android" ]]; then
+    if [ "$EUID" -ne 0 ]; then 
+        SUDO="sudo -u "$USER""
+    fi
+else
     if [ "$EUID" -ne 0 ]; then 
         echo "$ICON_FAIL Please run as root (use sudo)"
         exit 1
@@ -345,8 +520,34 @@ if [[ ! -d "$BIN_DIR" ]]; then
 fi
 
 
-# --- Required common tools ---
-DEPENDENCIES=(bc awk curl unzip dos2unix jq zip screen python3 python3-pip python3-venv openssl)
+# --- INTERACTIVE INSTALLATION ---
+
+
+if [[ "$LEGACY_MODE" == "true" ]] && [ -f /etc/python3/EXTERNALLY-MANAGED ]; then
+    echo "$ICON_CRITICAL Error: You requested --legacy, but this OS is Externally Managed."
+    echo "Forcing Backpack mode to prevent installation failure."
+    # Overwrite the flag logic here if you want to be extra safe
+    LEGACY_MODE="false"
+fi
+
+
+# --- Verify installation tool ---
+echo "$ICON_PACKAGE Applying '$UPDATE_CMD; $INSTALL_CMD' for installing packages."
+echo "$ICON_PACKAGE Preparing to install packages for $DEPENDENCIES."
+echo " "
+
+read -p "$ICON_QUESTION Continue with installation into $BASE_DIR ? (Yes/No/Quit): " confirm
+confirm=${confirm,,} 
+if [[ "$confirm" == "q" ]] || [[ "$confirm" == "quit" ]]; then
+    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
+    exit 0
+elif [[ "$confirm" != "y" && "$confirm" != "yes" && "$confirm" != "" ]]; then
+    echo -e "\n$ICON_FAIL Installation aborted."
+    exit 1
+fi
+
+
+echo -e "\n\n$ICON_CRITICAL Installation in progress.. DO NOT INTERUPT UNTIL ASKED !\n\n"
 
 
 # --- Permissions & Cleaning ---
@@ -359,11 +560,11 @@ if [[ -f tools/crlf.sh ]]; then
 fi
 
 # Assure no CRLF line endings occur
-dos2unix bee.sh monitor.sh detector.py
-dos2unix tools/*
-dos2unix install/*
-dos2unix models/*
-dos2unix config-default/bee.conf-default config-default/notify.conf-default
+sed -i 's/\r//' bee.sh monitor.sh detector.py
+sed -i 's/\r//' tools/*
+sed -i 's/\r//' install/*
+sed -i 's/\r//' models/*
+sed -i 's/\r//' config-default/bee.conf-default config-default/notify.conf-default
 
 # Directory creation
 echo "$ICON_DIR Creating directories..."
@@ -407,6 +608,7 @@ for src_item in "models/"*; do
         cp -f "$src_item" "$dest_item"
         chown -R $USER:$GROUP "$dest_item"
         chmod 640 "$dest_item" 
+        sed -i 's/\r//' $dest_item
     fi
 done
 
@@ -443,7 +645,6 @@ chown $USER:$GROUP "$BASE_DIR/bee.sh" "$BASE_DIR/monitor.sh" "$BASE_DIR/detector
 chmod +x "$BASE_DIR/bee.sh" "$BASE_DIR/monitor.sh"
 chmod 644 "$BASE_DIR/detector.py"
 
-
 # Copy tools
 cp -rf tools "$BASE_DIR/"
 chown $USER:$GROUP "$BASE_DIR/tools"
@@ -453,11 +654,11 @@ chmod 750 "$BASE_DIR/tools/"*
 chmod +x "$BASE_DIR/tools/"*
 
 # Copy default config for uninstall.sh support
-cp -rf "config-default" "$USER_LOCAL_DIR/"
-chown $USER:$GROUP "$USER_LOCAL_DIR/config-default"
-chown $USER:$GROUP "$USER_LOCAL_DIR/config-default/"*
-chmod 750 "$USER_LOCAL_DIR/config-default"
-chmod 640 "$USER_LOCAL_DIR/config-default/"*
+cp -rf "config-default" "$BASE_DIR/"
+chown $USER:$GROUP "$BASE_DIR/config-default"
+chown $USER:$GROUP "$BASE_DIR/config-default/"*
+chmod 750 "$BASE_DIR/config-default"
+chmod 640 "$BASE_DIR/config-default/"*
 
 # Create the symlink so 'honeybee' works in the terminal and crontab
 if [ -L "/usr/local/bin/bee" ]; then
@@ -471,36 +672,6 @@ echo " "
 
 
 
-# --- INTERACTIVE INSTALLATION ---
-
-
-if [[ "$LEGACY_MODE" == "true" ]] && [ -f /etc/python3/EXTERNALLY-MANAGED ]; then
-    echo "$ICON_CRITICAL Error: You requested --legacy, but this OS is Externally Managed."
-    echo "Forcing Backpack mode to prevent installation failure."
-    # Overwrite the flag logic here if you want to be extra safe
-    LEGACY_MODE="false"
-fi
-
-
-# --- Verify installation tool ---
-echo " "
-echo "$ICON_PACKAGE Applying '$UPDATE_CMD; $INSTALL_CMD' for installing packages."
-echo " "
-
-read -p "$ICON_QUESTION Continue with installation into $BASE_DIR ? (Yes/No/Quit): " confirm
-confirm=${confirm,,} 
-if [[ "$confirm" == "q" ]] || [[ "$confirm" == "quit" ]]; then
-    echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
-    exit 0
-elif [[ "$confirm" != "y" && "$confirm" != "yes" && "$confirm" != "" ]]; then
-    echo -e "\n$ICON_FAIL Installation aborted."
-    exit 1
-fi
-
-
-echo -e "\n\n$ICON_CRITICAL Installation in progress.. DO NOT INTERUPT UNTIL ASKED !\n\n"
-
-
 # --- Surgical Dependency Check ---
 echo "$ICON_PACKAGE Checking dependancies..."
 check_and_install() {
@@ -509,6 +680,10 @@ check_and_install() {
         echo "$ICON_CRITICAL $tool missing. Fetching..."
         $UPDATE_CMD
         eval "$INSTALL_CMD $tool"
+        if [[ -n "$ACCEPT_CMD" ]]; then
+            $ACCEPT_CMD
+            eval "$INSTALL_CMD $tool"
+        fi
     else
         echo "$ICON_SUCCES $tool is ready."
     fi
@@ -521,7 +696,7 @@ done
 
 
 # --- Detect System Python (The Foundation) ---
-echo "Detecting System Python3..."
+echo "$ICON_SEARCH Detecting System Python3..."
 SYSTEM_PYTHON=$(command -v python3)
 
 if [[ -z "$SYSTEM_PYTHON" ]]; then
@@ -560,21 +735,21 @@ else
         VENV_PKG="python3.$PY_VER-venv"
 
         # Run silent
-        sudo $UPDATE_CMD -y &> /dev/null
+        $SUDO $UPDATE_CMD -y &> /dev/null
         
         # For debian check alternate package name
-        if [[ "$OS_FAMILY" == "ubuntu" || "$OS_FAMILY" == "debian" ]]; then
+        if [[ "$LINEAGE" == "ubuntu" || "$LINEAGE" == "debian" ]]; then
             # Check if the specific versioned package exists in the repo
             if apt-cache show "$VENV_PKG" &> /dev/null; then
                 echo "$ICON_DOWNLOAD Installing $VENV_PKG..."
-                sudo -u "$USER" $INSTALL_CMD "$VENV_PKG"
+                $SUDO $INSTALL_CMD "$VENV_PKG"
             else
                 # Fallback to the generic name if the versioned one isn't found
                 echo "$ICON_DOWNLOAD $VENV_PKG not found, trying generic python3-venv..."
-                sudo -u "$USER" $INSTALL_CMD python3-venv
+                $SUDO $INSTALL_CMD python3-venv
             fi
         else
-            sudo -u "$USER" $INSTALL_CMD python3-venv
+            $SUDO $INSTALL_CMD python3-venv
         fi
     fi
 
@@ -582,7 +757,7 @@ else
     if [[ ! -f "$BACKPACK_DIR/bin/python3" ]]; then
         echo "$ICON_PACKAGE Constructing Backpack with System-Link..."
         # We use the SYSTEM python to build the venv
-        if ! sudo -u "$USER" $SYSTEM_PYTHON -m venv --system-site-packages "$BACKPACK_DIR"; then
+        if ! $SUDO $SYSTEM_PYTHON -m venv --system-site-packages $INSTALL_PIP_PARAMS "$BACKPACK_DIR"; then
             echo "$ICON_FAIL Venv creation failed even after repair attempt."
             exit 1
         fi
@@ -597,8 +772,7 @@ else
     # Bootstrap Pip inside the Venv if it's missing
     if [[ ! -f "$PIP_BIN" ]]; then
         echo "$ICON_PACKAGE Backpack pip missing. Bootstrapping..."
-        sudo -u "$USER" $PYTHON_BIN -m ensurepip --default-pip &> /dev/null || \
-        curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_BIN
+        $INSTALL_PIP
     fi
 fi
 
@@ -608,9 +782,19 @@ if [[ ! -x $(echo $PYTHON_BIN | cut -d' ' -f1) ]]; then
     exit 1
 fi
 
-echo "$ICON_SUCCES Active Python: $PYTHON_BIN"
-echo "$ICON_SUCCES Active Pip: $PIP_BIN"
 
+if [[ -f "$PIP_BIN" ]]; then
+    echo "$ICON_SUCCES Active Python: $PYTHON_BIN"
+else
+    echo "$ICON_FAIL Missing Python binary $PYTHON_BIN"
+    exit 1
+fi
+if [[ -f "$PIP_BIN" ]]; then
+    echo "$ICON_SUCCES Active Pip: $PIP_BIN"
+else
+    echo "$ICON_FAIL Missing PIP binary $PIP_BIN"
+    exit 1
+fi
 
 
 # --- Install SciKit Backpack ---
@@ -622,7 +806,7 @@ if [[ "$install_sci" == "q" ]] || [[ "$install_sci" == "quit" ]]; then
     echo -e "\n$ICON_FAIL User cancelled installation. Exiting\n"
     exit 0
 elif [[ "$install_sci" == "y" ]] || [[ "$install_sci" == "yes" ]]; then
-    sudo -u "$USER" install/install-scikit.sh "$USER" "$GROUP" "$LLM_MODEL" "$BASE_DIR"
+    $SUDO install/install-scikit.sh "$USER" "$GROUP" "$LLM_MODEL" "$BASE_DIR"
     ENABLE_SCIKIT="true"
 fi
 
@@ -663,6 +847,10 @@ if [[ -z "$LLM_MODEL" ]]; then
 fi
 
 # --- If chosen install google API ---
+INSTALL=""
+if [[ -n "$SUDO" ]]; then
+    INSTALL="$SUDO $INSTALL_FLAGS"
+fi
 if [[ "$LLM_MODEL" == "googleapi" ]]; then
     echo " "
     read -p "$ICON_QUESTION Continue to install required google-genai into the Backpack? (Yes/No/Quit): " install_genai
@@ -675,14 +863,14 @@ if [[ "$LLM_MODEL" == "googleapi" ]]; then
         echo "$ICON_DOWNLOAD Fetching Google Generative AI nectar..."
         
         # Attempt 1: Standard upgrade/install
-        if sudo -u "$USER" CARGO_BUILD_JOBS=1 RUSTFLAGS="-C codegen-units=1 -C opt-level=z" "$PIP_BIN" install -q -U google-genai; then
+        if $INSTALL "$PIP_BIN" install -q -U google-genai; then
             echo "$ICON_SUCCES google-genai integrated into the backpack."
         else
             # Attempt 2: If first fail, purge cache and try without cache
             echo "$ICON_SYNC Hash mismatch or download error detected. Cleaning nectar cache and retrying..."
-            sudo -u "$USER" "$PIP_BIN" cache purge > /dev/null 2>&1
+            $INSTALL "$PIP_BIN" cache purge > /dev/null 2>&1
 
-            if sudo -u "$USER" CARGO_BUILD_JOBS=1 RUSTFLAGS="-C codegen-units=1 -C opt-level=z" "$PIP_BIN" install -q --no-cache-dir google-genai; then
+            if $INSTALL "$PIP_BIN" install -q --no-cache-dir google-genai; then
                 echo "$ICON_SUCCES google-genai integrated after cache purge."
             else
                 echo -e "\n$ICON_FAIL Failed to install google-genai even after cache purge.\n"

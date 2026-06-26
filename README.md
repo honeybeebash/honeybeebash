@@ -133,13 +133,15 @@ Usage: bee "[PROMPT]" [JOB_NAME]:[VERSION] [OPTIONS]
 Default action: Continues last job.
 
 CORE COMMAND OPTIONS:
-  --help                  Show this help information
+  --help or ?             Show this help information
   --version               Show the version number of Bee
   --timeout=n             Override default LLM timeout (seconds). For testing and tuning.
   --delay=n               Set the amount of seconds to wait between LLM requests.
+  --mode={mode}           Only for this job run either of RESTRICTIVE, PERMISSIVE, ADAPTIVE or MANUAL
   --verbose=0-2           Show less output (0) or more (2) [CONFLICT] [WARNING] [NOTICE]
   --silent                Show no output  
   --debug=0-3             Set debug level (0 none - 3 full)  
+  --venv or --backpack    Prints out the command to enter the python virtual environment
   --update                Obtains the latest version and installs the scripts only for immediate use
   --exit                  Exit after processing parameter commands
 
