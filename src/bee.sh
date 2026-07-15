@@ -71,9 +71,9 @@ QUEEN_PORT=""
 SECRET_KEY=""
 
 MODEL=""
-SELECTED_MODEL_NAME="" 
-SELECTED_CONTEXT_SIZE=""
-SELECTED_MODEL_BASE_URL=""
+MODEL_NAME="" 
+MODEL_CONTEXT_SIZE=""
+MODEL_BASE_URL=""
 GEMINI_API_KEY=""
 
 end_program() {
@@ -144,7 +144,7 @@ DATA & RULE OPTIONS:
   --forget=\"CMD\"         Remove a command from the job rulesets
 
 LLM MODEL OPTIONS:
-  --model=MODEL           Chante active LLM resource (local, geminiflash, googleapi)
+  --model=MODEL           Change active LLM resource (local, geminiflash, googleapi)
   --googleapikey=key      Set and store your obtained Google API key
 
 JOB MANAGEMENT OPTIONS:
@@ -236,6 +236,7 @@ EXPORT_TEXT=""
 IMPORT_SET=""
 TARGET_JOB=""
 DROP_JOB=""
+LLM_MODEL=""
 DO_BEE_DELAY=""
 DO_CAP_RESPONSE="false"
 DO_CONFIG="false"
@@ -417,6 +418,12 @@ while [[ $# -gt 0 ]]; do
             EXPORT_TEXT="${1#*=}"
             shift
             ;;
+        
+        --hubjobs)
+            DO_IMPORT="hubjobs"
+            shift
+            ;;
+            
         --import=*)
             # Import only the bee profile and ruleset from that job.
             IMPORT_SET="${1#*=}"
@@ -564,7 +571,6 @@ LINEAGE=""
 OS="unknown"
 OS_VARIANT=""
 VERSION_MAJOR=""
-LLM_MODEL=""
 MODE_AUTOMATIC=""
 
 textdebug 2 "Detecting OS name ..."
@@ -694,14 +700,6 @@ if [[ -f "$USER_CONFIG_DIR/bee.conf" ]]; then
     CONFIG_FILE="$CONFIG_DIR/bee.conf"
     DEFAULT_CONFIG_FILE="$USER_CONFIG_DIR/bee.conf-default"
     source "$CONFIG_FILE"
-    APPLIED_MODEL_MAX_CHARACTERS="$FILTER_TRIGGER" # Legacy support
-    if [[ -n "$DO_MODE" ]]; then
-        DO_MODE="${DO_MODE^^}"
-        if [[ "$DO_MODE" == "RESTRICTIVE" || "$DO_MODE" == "PERMISSIVE" || "$DO_MODE" == "ADAPTIVE" || "$DO_MODE" == "MANUAL" ]]; then            
-            textdebug 0 "Running in custom automation mode : $DO_MODE"
-            MODE_AUTOMATION="$DO_MODE"
-        fi
-    fi
 else
     end_program 1 "Missing config file $USER_CONFIG_DIR/bee.conf"
 fi
@@ -727,6 +725,18 @@ if [[ "$VERBOSE_LEVEL" -ge "2" ]]; then
 fi
 export BEE_HOME="$BASE_DIR"
 
+# Legacy support
+APPLIED_MODEL_MAX_CHARACTERS="$FILTER_TRIGGER"
+# Override automation mode
+if [[ -n "$DO_MODE" ]]; then
+    DO_MODE="${DO_MODE^^}"
+    if [[ "$DO_MODE" == "RESTRICTIVE" || "$DO_MODE" == "PERMISSIVE" || "$DO_MODE" == "ADAPTIVE" || "$DO_MODE" == "MANUAL" ]]; then            
+        textdebug 0 "Running in custom automation mode : $DO_MODE"
+        MODE_AUTOMATIC="$DO_MODE"
+    else
+        end_program 1 "Unknown automation mode '$DO_MODE'"
+    fi
+fi
 
 # If we have a TTY, we use it to remember the job for this specific window.
 # If no TTY (Cron/Background), we use the PID to ensure isolation.
@@ -1005,10 +1015,10 @@ if [[ -n "$FILTER_TRIGGER" ]] && [[ "$FILTER_TRIGGER" -gt "0" ]] && [[ "$FILTER_
     APPLIED_MODEL_MAX_CHARACTERS="$FILTER_TRIGGER"
 fi
 SELECTED_MODEL_MAX_CHARACTERS="$APPLIED_MODEL_MAX_CHARACTERS"
-SELECTED_MODEL_NAME="" 
-SELECTED_CONTEXT_SIZE=""
+MODEL_NAME="" 
+MODEL_CONTEXT_SIZE=""
 SELECTED_MODEL_RETRY_TIMEOUT=5
-SELECTED_MODEL_BASE_URL=""
+MODEL_BASE_URL=""
 
 GEMINI_API_KEY=""
 USE_ML_GUARD="false"
@@ -1069,7 +1079,8 @@ if [[ "$DO_CONFIG" == "true" ]]; then
     echo "PATH_ENV=$PATH_ENV"
     echo "HOSTNAME=$HOSTNAME"
     echo "LAN_IP=$LAN_IP"
-    echo "SELECTED_MODEL_NAME=$SELECTED_MODEL_NAME"
+    echo "LLM_MODEL=$LLM_MODEL"
+    echo "MODE_AUTOMATIC=$MODE_AUTOMATIC"
 
     end_program
 fi
@@ -1824,6 +1835,13 @@ import_dataset() {
     fi
 }
 if [[ "$DO_IMPORT" != "false" ]]; then
+    if [[ "$DO_IMPORT" == "hubjobs" ]]; then
+        set +e
+        RESULT=$(curl -s "$HIVEHUB_API_URL?a=jobs&distro=$LINEAGE&os=$OS")
+        set -e
+        end_program 0 "$RESULT"
+    fi
+            
     import_dataset "$DO_IMPORT"
 fi
 
@@ -1851,7 +1869,7 @@ JOB DIR=$JOB_DIR/
 MEMORY DIR=$JOB_DIR/memory/
 TEMPORARY DIR=$JOB_DIR/tmp/"
 
-textdebug 3 "ENVIRONMENT:\n$ENV\nMODEL=$LLM_MODEL"
+textdebug 3 "ENVIRONMENT:\n$ENV\nMODEL=$LLM_MODEL\nAUTOMATION MODE=$MODE_AUTOMATIC"
 
 
 # Exit by command
@@ -1926,232 +1944,6 @@ if [[ "$DO_REVIEW" == "true" ]]; then
 fi
 
 
-function googlegenerator() {
-    # Gemini Flash Payload
-    JSON_PAYLOAD=$(jq -n \
-    --arg prompt "$PROMPT" \
-    '{
-        contents: [{ parts: [{ text: $prompt }] }],
-        generationConfig: { response_mime_type: "application/json" }
-    }')
-    RESPONSE=$(curl -s -S --connect-timeout "$TIMEOUT" --max-time "$MAX_TIMEOUT" \
-        "$MODEL_BASE_URL" \
-        -H "Content-Type: application/json" \
-        -H "x-goog-api-key: $GEMINI_API_KEY" \
-        -d "$JSON_PAYLOAD")
-}
-
-function googleapiai() {
-    AI_RESPONSE=$($PYTHON_BIN -c '
-    from google import genai
-    import os
-
-    client = genai.Client()
-    response = client.models.generate_content(
-        model="gemini-3-flash-preview", 
-        contents="$PROMPT"
-    )
-    print(response.text)
-    ')
-}
-
-#-------------------------------------------------------------------------------
-# @function   googleai
-# @description Sovereign Cloud-Based Analysis via Google Gemini API.
-#              The "Supreme Court" of the Hive; invoked for high-stakes 
-#              ambiguity or complex script decoding.
-#
-# @param      $1  Command string to analyze.
-# @param      $2  Context (optional: e.g., error logs or system state).
-#
-# @returns    High-fidelity risk assessment and mitigation advice.
-# @security   Note: Sends command strings to external API. Ensure PII/Secrets 
-#             are scrubbed before invocation.
-#-------------------------------------------------------------------------------
-remote_googleai(){
-
-    START_TIME=$(date +%s.%N)
-    local rate_retries=0
-
-    while true; do
-        set +e
-        RESPONSE=$(printf '%s' "$PROMPT" | $PYTHON_BIN "$USER_LOCAL_DIR/models/$LLM_MODEL".py 2>&1)
-        set -e
-
-        textdebug 0 "REMOTE RESPONSE: $RESPONSE"
-
-        # In case of an error
-        if [[ "$RESPONSE" == *"SDK Error: 503 UNAVAILABLE"* ]] || [[ "$RESPONSE" == *"GenerateRequestsPerDayPerProjectPerModel"* ]] ; then
-            RESPONSE=$(echo "$RESPONSE" | tr "'" '"')
-        elif [[ "$RESPONSE" == *"SDK Error:"* ]]; then
-            end_program 1 "GoogleAPI SDK returned an error. $RESPONSE"
-        fi
-
-        if [[ "$RESPONSE" == *"ModuleNotFoundError: No module named"* ]]; then
-            end_program 1 "Missing modules. Did you forget to install or enter the venv ?" 
-        fi
-        
-        # Grab the JSON
-        prefix="${RESPONSE%%\{*}"
-        start_index=${#prefix} 
-
-        # Now grab everything from that index forward
-        CLEAN_EXTRACT="${RESPONSE:$start_index}"
-
-        # Trim everything after the last }
-        CLEAN_EXTRACT="${CLEAN_EXTRACT%\}*}"
-        CLEAN_EXTRACT="${CLEAN_EXTRACT}}"
-
-        if [[ -n "$CLEAN_EXTRACT" ]]; then
-            FINAL_JSON="${CLEAN_EXTRACT%\}*}} "
-            
-            # Clean up any trailing whitespace/newlines
-            FINAL_JSON=$(echo "$FINAL_JSON" | tr -d '\n\r')
-
-            # 4. Now validate the result
-            if echo "$FINAL_JSON" | jq -e . >/dev/null 2>&1; then
-                if echo "$FINAL_JSON" | jq -e 'has("error") == false' >/dev/null 2>&1; then
-                    RESPONSE="$FINAL_JSON"
-                    textdebug 0 "Success: Found JSON via position search."
-                    break
-                fi
-            fi
-        fi
-
-        # GLOBAL OVERRIDES (Keep these after the checks)
-        if [[ "$DO_ASKONCE" == "true" ]] || [[ "$TEST_MODE" == "true" ]]; then
-            break
-        fi
-
-        # VALIDATION & BRANCHING
-        if echo "$FINAL_JSON" | jq -e 'has("error") == false' >/dev/null 2>&1; then
-            # --- SUCCESS PATH ---
-            RESPONSE="$FINAL_JSON"
-            textdebug 0 "Success: Nectar acquired."
-            break # EXITS THE WHILE LOOP IMMEDIATELY
-        else
-            # --- API ERROR PATH (JSON) ---
-            ERR_MSG=$(echo "$FINAL_JSON" | jq -r '.error.message // "Unknown API Error"')
-        fi
-
-        # 4. ERROR ANALYSIS (Only reached if success 'break' didn't happen)
-        textdebug 0 "ERR_MSG: $ERR_MSG"
-
-        # CASE: 503 Spike
-        if [[ "$RESPONSE" == *"503"* ]] || [[ "$ERR_MSG" == *"high demand"* ]]; then
-            textline 1 "${GOLD}[!] Server Busy (503). Retrying...${NC}"
-            sleep "$SELECTED_MODEL_RETRY_TIMEOUT"
-            continue 
-        fi
-
-        # CASE: Hard Quota
-        if [[ "$RESPONSE" == *"GenerateRequestsPerDayPerProjectPerModel"* ]]; then
-            end_program 1 "${WHITE}Daily project quota exhausted. Loop terminated.${NC}"
-        fi
-        
-        # CASE: Rate Limit
-        if [[ "$ERR_MSG" =~ retry\ in\ ([0-9.]+)s ]] || [[ "$RESPONSE" == *"RESOURCE_EXHAUSTED"* ]]; then
-            rate_retries=$((rate_retries + 1))
-            if [ "$rate_retries" -gt "$MAX_RATE_LIMIT_RETRIES" ]; then
-                end_program 1 "Rate limit retries exhausted."
-            fi
-            WAIT_S="${BASH_REMATCH[1]:-10}"
-            SLEEP_S=$(echo "$WAIT_S + 5" | bc)
-            sleep "$SLEEP_S"
-            continue
-        fi
-
-        read -t 0.1 -n 1 key_pressed || true
-        if [[ "${key_pressed:-}" == "q" ]]; then
-            textbox 0 "${CYAN}» Exitting by user request.${NC}" "happy"
-            bee_signal "$JOB_NAME" "DONE"
-            end_program
-        fi
-        
-        # CASE: Unknown Fatal Error
-        end_program 1 "${WHITE}Gemini API Fatal Error:${NC} $ERR_MSG"
-    done
-    
-    textdebug 0 "Processing response"
-
-    # --- Processing the successful response ---
-    if [[ "$DO_ASKONCE" != "true" ]] && [[ "$TEST_MODE" != "true" ]]; then
-
-        # Support dual response 
-        NESTED_JSON=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
-        if [[ "$NESTED_JSON" == \{* ]]; then
-            SOURCE="$NESTED_JSON"
-        else
-            SOURCE="$RESPONSE"
-        fi
-        # Extract values
-        if [[ -n "$SOURCE" ]]; then
-            COMMAND=$(echo "$SOURCE" | jq -r '.command // empty')
-            EXPLANATION=$(echo "$SOURCE" | jq -r '.explanation // empty')
-            NEW_FACT=$(echo "$SOURCE" | jq -r '.new_fact // empty')
-            TASK_COMPLETED=$(echo "$SOURCE" | jq -r '.task_completed // empty')
-            GOAL_COMPLETED=$(echo "$SOURCE" | jq -r '.goal_completed // empty')     
-        fi
-           
-        # Timing Stats
-        END_TIME=$(date +%s.%N)
-        TOTAL_TIME=$(echo "$END_TIME - $START_TIME" | bc)
-    fi
-}
-
-
-#-------------------------------------------------------------------------------
-# @function   ollama
-# @description Heavy-duty heuristic reasoning via Ollama (Local LLM).
-#              Used for deep contextual analysis when Scikit-Learn is ambiguous.
-#
-# @param      $1  Command string to analyze.
-# @param      $2  Model name (defaults to llama3).
-#
-# @returns    Textual explanation of command intent and risk factor.
-#-------------------------------------------------------------------------------
-local_ollama(){
- 
-    if [[ -z "$SELECTED_MODEL_BASE_URL" ]]; then
-        end_program 1 "${WHITE}API Error:${NC} Missing Model API URL. Verify models/$LLM_MODEL.py"
-    fi
-
-    length=${#PROMPT}
-    textdebug 0 "Calling $PYTHON_BIN with $USER_LOCAL_DIR/models/$LLM_MODEL.py with prompt of size $length bytes"
-
-    set +e    
-    RESPONSE=$(printf '%s' "$PROMPT" | $PYTHON_BIN "$USER_LOCAL_DIR/models/$LLM_MODEL".py)
-    set -e
-
-    textdebug 0 "LOCALAI RESPONSE: $RESPONSE"
-
-    # Check if empty OR if the JSON contains a top-level error key
-    if [ -z "$RESPONSE" ] || [ "$(echo "$RESPONSE" | jq 'has("error")')" == "true" ]; then
-        end_program 1 "${WHITE}Ollama API Error:${NC} $(echo "$RESPONSE" | jq -r '.error // "Unknown Error"')"
-    fi
-
-    if [[ "$DO_ASKONCE" != "true" ]]; then
-
-        CONTENT=$(echo "$RESPONSE" | jq -r '.response')
-        if [[ -n "$CONTENT" ]]; then
-            COMMAND=$(echo "$CONTENT" | jq -r '.command // empty')
-            if [[ -n "$CONTENT" ]]; then
-                EXPLANATION=$(echo "$CONTENT" | jq -r '.explanation // empty')
-                NEW_FACT=$(echo "$CONTENT" | jq -r '.new_fact // empty')
-                TASK_COMPLETED=$(echo "$CONTENT" | jq -r '.task_completed // empty')
-                GOAL_COMPLETED=$(echo "$CONTENT" | jq -r '.goal_completed // empty')
-                CONTEXT=$(echo "$RESPONSE" | jq -r '.content // empty')
-            else
-                # Missing response structure, store all as explanation
-                EXPLANATION="$CONTENT"
-            fi
-        fi
-        
-        # Fix the Stats Math (using bc for decimals)
-        TOTAL_NS=$(echo "$RESPONSE" | jq -r '.total_duration')
-        SECONDS=$(echo "$TOTAL_NS / 1000000000" | bc)
-    fi
-}
 
 #-------------------------------------------------------------------------------
 # @function   get_token_count
@@ -2210,34 +2002,69 @@ trim_to_max_tokens() {
     fi
 }
 
-load_model() {
-    # Call model
-    if [ $LLM_MODEL == "local" ]; then
-        if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
-            source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
-            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && [[ "$SELECTED_MODEL_MAX_CHARACTERS" -gt "0" ]]; then
-                APPLIED_MODEL_MAX_CHARACTERS="$SELECTED_MODEL_MAX_CHARACTERS"
-            fi
-            export GEMINI_API_KEY="$GEMINI_API_KEY"
-            export MODEL_BASE_URL="$SELECTED_MODEL_BASE_URL"
-            export SELECTED_CONTEXT_SIZE="$SELECTED_CONTEXT_SIZE"
-            export MAX_TIMEOUT="$MAX_TIMEOUT"
-
-        fi
-    else
-       if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
-            source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
-            if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && [[ "$SELECTED_MODEL_MAX_CHARACTERS" -gt "0" ]]; then
-                APPLIED_MODEL_MAX_CHARACTERS="$SELECTED_MODEL_MAX_CHARACTERS"
-            fi
-            export SELECTED_MODEL_NAME="$SELECTED_MODEL_NAME"
-            export GEMINI_API_KEY="$GEMINI_API_KEY"
-            export MAX_TIMEOUT="$MAX_TIMEOUT"
+# Load the config for the selected LLM model
+load_model_config() {
+    if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
+        source "$USER_LOCAL_DIR/models/$LLM_MODEL".conf
+        if [[ -n "$SELECTED_MODEL_MAX_CHARACTERS" ]] && [[ "$SELECTED_MODEL_MAX_CHARACTERS" -gt "0" ]]; then
+            APPLIED_MODEL_MAX_CHARACTERS="$SELECTED_MODEL_MAX_CHARACTERS"
         fi
     fi
 }
+
 #-------------------------------------------------------------------------------
-# @function   analyze_prompt
+# @function   request_model
+# @description Call to LLM model python script
+#
+# std.input   Prompt to analyze.
+# @param      $1  Path to .conf files
+#
+# @returns    Response package with next action data
+#-------------------------------------------------------------------------------
+request_model(){
+ 
+    if [[ -z "$MODEL_NAME" ]]; then
+        end_program 1 "${WHITE}API Error:${NC} Missing Model Name. Verify models/$LLM_MODEL.py"
+    fi
+
+    length=${#PROMPT}
+    textdebug 0 "Calling $PYTHON_BIN with $USER_LOCAL_DIR/models/$LLM_MODEL.py with prompt of size $length chars"
+
+    set +e    
+    RESPONSE=$(printf '%s' "$PROMPT" | $PYTHON_BIN "$USER_LOCAL_DIR/models/$LLM_MODEL".py)
+    set -e
+    
+    length=${#RESPONSE}
+    textdebug 2 "Returned response is $length chars" 
+    
+    # 1. Check if the response is empty
+    if [[ -z "$RESPONSE" ]]; then
+        end_program 1 "${WHITE}API Error:${NC} Empty response from script"
+    fi
+
+    # 2. Check if Python returned a JSON-formatted error
+    API_ERROR=$(echo "$RESPONSE" | jq -r '.error // empty')
+    if [[ -n "$API_ERROR" ]]; then
+        end_program 1 "${WHITE}API Error:${NC} $API_ERROR"
+    fi
+
+    # 3. If we aren't doing a simple ask-once, extract the fields cleanly
+    if [[ "$DO_ASKONCE" != "true" ]]; then
+        COMMAND=$(echo "$RESPONSE" | jq -r '.command // empty')
+        EXPLANATION=$(echo "$RESPONSE" | jq -r '.explanation // empty')
+        NEW_FACT=$(echo "$RESPONSE" | jq -r '.new_fact // empty')
+        TASK_COMPLETED=$(echo "$RESPONSE" | jq -r '.task_completed // empty')
+        GOAL_COMPLETED=$(echo "$RESPONSE" | jq -r '.goal_completed // empty')
+        CONTEXT=$(echo "$RESPONSE" | jq -r '.context // empty')
+    fi
+    
+    # Fix the Stats Math (using bc for decimals)
+    TOTAL_NS=$(echo "$RESPONSE" | jq -r '.total_duration')
+    SECONDS=$(echo "$TOTAL_NS / 1000000000" | bc)
+}
+
+#-------------------------------------------------------------------------------
+# @function   run_prompt
 # @description Orchestrates multi-layered analysis for ambiguous commands.
 #              Primary: Local Scikit-Learn Heuristics (Low Latency).
 #              Secondary: Remote LLM Contextual Analysis (High Reasoning).
@@ -2247,14 +2074,14 @@ load_model() {
 #
 # @returns    JSON-formatted string containing threat_score and reasoning.
 #-------------------------------------------------------------------------------
-analyze_prompt() {
+run_prompt() {
     
     TOKENS=$(get_token_count "$PROMPT")
     LENGTH=${#PROMPT}
 
     if [[ "$DO_ASKONCE" == "false" ]]; then
         textline 0 ""
-        textbox 0 "${CYAN}» Polling the hive @ $SELECTED_MODEL_NAME [ctx $TOKENS / $LENGTH chars]${NC} " "thinking"
+        textbox 0 "${CYAN}» Polling the hive @ $MODEL_NAME [ctx $TOKENS / $LENGTH chars]${NC} " "thinking"
     fi
 
     CONTENT=""
@@ -2268,13 +2095,18 @@ analyze_prompt() {
     echo -e "\n\n$PROMPT" >> "$JOB_DIR/LOG"
 
     # Call the LLM model
-    if [ $LLM_MODEL == "local" ]; then
-        if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
-            local_ollama
-        fi
-    elif [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
-        remote_googleai
-    fi
+#    if [ $LLM_MODEL == "local" ]; then
+#        if [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
+#            local_ollama
+#        fi
+#    elif [[ -f "$USER_LOCAL_DIR/models/$LLM_MODEL".py ]]; then
+#        remote_googleai
+#    fi
+
+    load_model_config
+    
+    request_model
+    
     echo -e "\n\n$RESPONSE" >> "$JOB_DIR/LOG"
 
     if [ -n "$NEW_FACT" ]; then
@@ -2317,7 +2149,7 @@ analyze_prompt() {
 #              - Ensures type-safety and character escaping via jq.
 #              - Provides a single source of truth for real-time monitoring.
 #
-# @globals     $GOAL, $FOCUS_SUMMARY, $TOKEN_COUNT, $BEE_STATUS, $SELECTED_MODEL_NAME
+# @globals     $GOAL, $FOCUS_SUMMARY, $TOKEN_COUNT, $BEE_STATUS, $MODEL_NAME
 # @output      $WORKSPACE_DIR/stats.json
 #-------------------------------------------------------------------------------
 update_hud_json() {
@@ -2327,7 +2159,7 @@ update_hud_json() {
     local focus="${FOCUS_SUMMARY:-Idle}"
     local tokens="${TOKEN_COUNT:-0}"
     local status="${BEE_STATUS:-Sensing}"
-    local model="${SELECTED_MODEL_NAME:-Unknown}"
+    local model="${MODEL_NAME:-Unknown}"
     local promptsize=${#PROMPT}
     local tokencount=$(get_token_count "$PROMPT")
     local requestcount=${CYCLE:0}
@@ -2578,13 +2410,12 @@ securitycheck() {
         replace_commands "$JOB_DIR/config/RUN_REPLACE"
     fi
 
-    # Testmode for INTERACTIVE mode
+    # Autonomouse mode
     if [ $MODE_AUTOMATIC == "PERMISSIVE" ]; then
         textbox 2 "${GREEN}$ICON_SUCCES Permissive mode: Allowing command.${NC}" "happy"
         AUTO_FIX_ENABLED="true"
         return 0
     fi
-
 
     # Without a detector only apply RUN rules
     textdebug 0 "DETECTOR: Probe SciKit"
@@ -2671,7 +2502,7 @@ bee_signal() {
     local state="${2:-}"
     local cmd="${3:-}"
 
-    if [[ -z $QUEEN_IP ]] || [[ -z $QUEEN_PORT ]] || [[ -z $SECRET_KEY ]]; then
+    if [[ -z "$QUEEN_IP" ]] || [[ -z "$QUEEN_PORT" ]] || [[ -z "$SECRET_KEY" ]]; then
         return
     fi
     if is_lan_address "$QUEEN_IP"; then
@@ -2691,7 +2522,7 @@ bee_signal() {
     SIG=$(printf %s "$PAYLOAD" | openssl dgst -sha256 -hmac "$SECRET_KEY" | sed 's/^.* //')
 
     # Fire Packet (NO -n on the final echo, we want the newline for the Queen's 'read')
-    echo "$PAYLOAD:::$SIG" > "/dev/udp/$QUEEN_IP/$QUEEN_PORT"
+    echo "$PAYLOAD:::$SIG" > "/dev/udp/$QUEEN_IP/$QUEEN_PORT" 2>/dev/null || true
 }
 
 is_lan_address() {
@@ -2716,8 +2547,8 @@ build_prompt() {
     if [[ -z "$APPLIED_MODEL_MAX_CHARACTERS" ]] || [[ "$APPLIED_MODEL_MAX_CHARACTERS" -lt "1" ]]; then
         end_program 1 "Prompt builder is missing APPLIED_MODEL_MAX_CHARACTERS. Check the model '$MODEL' configuration."
     fi
-    if [[ -z "$SELECTED_CONTEXT_SIZE" ]] || [[ "$SELECTED_CONTEXT_SIZE" -lt "1" ]]; then
-        end_program 1 "Prompt builder is missing SELECTED_CONTEXT_SIZE. Check the model '$MODEL' configuration."
+    if [[ -z "$MODEL_CONTEXT_SIZE" ]] || [[ "$MODEL_CONTEXT_SIZE" -lt "1" ]]; then
+        end_program 1 "Prompt builder is missing MODEL_CONTEXT_SIZE. Check the model '$MODEL' configuration."
     fi
 
     # 1. Handle Context Addition
@@ -2774,8 +2605,8 @@ $LAST_CONTEXT"
         textline 1 "${CYAN}» Prompt is too large ($token_count_prompt:$DO_MAX_CAP_RESPONSE tokens) for custom ctx. Minimizing structure.${NC}\n"
         SHORTEN="true"
     fi
-    if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
-        textline 1 "${CYAN}» Prompt is too large ($token_count_prompt:$SELECTED_CONTEXT_SIZE tokens) for model ctx. Minimizing structure.${NC}\n"
+    if [[ "$token_count_prompt" -gt "$MODEL_CONTEXT_SIZE" ]]; then
+        textline 1 "${CYAN}» Prompt is too large ($token_count_prompt:$MODEL_CONTEXT_SIZE tokens) for model ctx. Minimizing structure.${NC}\n"
         SHORTEN="true"
     fi
 
@@ -2824,10 +2655,10 @@ $RESULT"
             textline 1 "${CYAN}» Prompt still too large ($token_count_prompt:$DO_MAX_CAP_RESPONSE tokens) for custom ctx. Trimming command result logs.${NC}\n"
             SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - token_count_tmp_prompt - 100 ))
         fi
-        if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
-            if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
-                textline 1 "${CYAN}» Prompt still too large ($token_count_prompt:$SELECTED_CONTEXT_SIZE tokens) for model ctx. Trimming command result logs.${NC}\n"
-                SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - token_count_tmp_prompt - 100 ))
+        if [[ "$token_count_prompt" -gt "$MODEL_CONTEXT_SIZE" ]]; then
+            if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$MODEL_CONTEXT_SIZE" ]]; then
+                textline 1 "${CYAN}» Prompt still too large ($token_count_prompt:$MODEL_CONTEXT_SIZE tokens) for model ctx. Trimming command result logs.${NC}\n"
+                SHORTEN_TO_TOKENS=$(( MODEL_CONTEXT_SIZE - token_count_tmp_prompt - 100 ))
             fi
         fi
 
@@ -2872,10 +2703,10 @@ $RESULT"
         textline 1 "${CYAN}» Prompt safety cap triggered ($token_count_prompt:$DO_MAX_CAP_RESPONSE tokens) on custom ctx. Trimming prompt.${NC}\n"
         SHORTEN_TO_TOKENS=$(( DO_MAX_CAP_RESPONSE - 100 ))
     fi
-    if [[ "$token_count_prompt" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
-        if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$SELECTED_CONTEXT_SIZE" ]]; then
-            textline 1 "${CYAN}» Prompt safety cap triggered ($token_count_prompt:$SELECTED_CONTEXT_SIZE tokens) on model ctx. Trimming prompt.${NC}\n"
-            SHORTEN_TO_TOKENS=$(( SELECTED_CONTEXT_SIZE - 100 ))
+    if [[ "$token_count_prompt" -gt "$MODEL_CONTEXT_SIZE" ]]; then
+        if [[ -z "$SHORTEN_TO_TOKENS" ]] || [[ "$SHORTEN_TO_TOKENS" -gt "$MODEL_CONTEXT_SIZE" ]]; then
+            textline 1 "${CYAN}» Prompt safety cap triggered ($token_count_prompt:$MODEL_CONTEXT_SIZE tokens) on model ctx. Trimming prompt.${NC}\n"
+            SHORTEN_TO_TOKENS=$(( MODEL_CONTEXT_SIZE - 100 ))
         fi
     fi
 
@@ -3091,10 +2922,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
         
         textdebug 2 "INPUT=$PROMPT"
 
-        # Load LLM model with config
-        load_model
-
-        analyze_prompt
+        run_prompt
 
         if [[ -z "$RESPONSE" ]]; then
             echo -e "\nThe LLM has no answer. Rephrase the question to try again."
@@ -3143,7 +2971,8 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
             RUNNING_COMMAND=""
         fi
         
-        load_model
+        # Refresh settings in case model changed since start-run
+        load_model_config
 
         # Build size (token+char) optimized prompt
         build_prompt
@@ -3156,7 +2985,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
 
         bee_signal "$JOB_NAME" "THINKING"
 
-        analyze_prompt
+        run_prompt
 
         # Check if the goal-completed exists in the response (after last command )
         if [[ "$GOAL_COMPLETED" == "true" ]]; then
@@ -3386,13 +3215,18 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
                         NEW_DIR="${BASH_REMATCH[1]}"
                         # Use 'eval' to handle ~ or variables in the path, then update CURRENT_DIR
                         CURRENT_DIR=$(pwd)
-                        TEMP_DIR=$(eval "cd $CURRENT_DIR && cd $NEW_DIR && pwd")
-                        if [ $? -eq 0 ]; then
-                            CURRENT_DIR="$TEMP_DIR"
-                            cd $CURRENT_DIR
-                            RESULT="Directory changed to: $CURRENT_DIR"
-                            echo $RESULT
-                            echo -e "${CYAN}» Directory changed to:${NC} $COMMAND"
+                        if [[ -d "$CURRENT_DIR/$NEW_DIR" ]]; then
+                            TEMP_DIR=$(eval "cd $CURRENT_DIR && cd $NEW_DIR && pwd")
+                            if [ $? -eq 0 ]; then
+                                CURRENT_DIR="$TEMP_DIR"
+                                cd $CURRENT_DIR
+                                RESULT="Directory changed to: $CURRENT_DIR"
+                                echo $RESULT
+                                echo -e "${CYAN}» Directory changed to:${NC} $COMMAND"
+                            else
+                                RESULT="Error: Directory does not found: $COMMAND"
+                                echo $RESULT
+                            fi
                         else
                             RESULT="Error: Directory does not exist: $COMMAND"
                             echo $RESULT
@@ -3530,9 +3364,7 @@ while [[ "$JOB_COMPLETED" == "false" ]]; do
 
         textdebug 2 "INPUT+=$PLANNING_RULES"
 
-        load_model
-
-        analyze_prompt
+        run_prompt
 
         if [[ $EXPLANATION != "" ]]; then
             echo "$EXPLANATION" > "$JOB_DIR/PLAN"

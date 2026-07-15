@@ -9,7 +9,6 @@ MAX_TIMEOUT="600"           # Absolute API timeout
 MAX_RATE_LIMIT_RETRIES=30   # Retries maximum for remote API
 HISTORY_DEPTH=10000           # Scope depth, counted in Lines
 MONITOR_INTERVAL=1          # Speed of monitor updates in seconds
-PYTHON_CMD="/opt/honeybeebash/backpack/bin/python3"
 
 # URL to HiveHub Central for exporting HoneyBee ruleset packages
 HIVEHUB_API_URL="https://honeybeebash.com/hivehub/api.php"
