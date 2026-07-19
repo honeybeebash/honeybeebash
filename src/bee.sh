@@ -23,10 +23,10 @@ fi
 # STRATEGY:  Active trainable maintenance loop for Linux systems
 # ARCH:      Quad-Tiered Risk Mitigation (Signature + Heuristic + LLM)
 # ENGINE:    Scikit-Learn (RandomForest) + TF-IDF Vectorization
-# BACKENDS:  Local (CSV), LAN (Ollama), Cloud (Gemini)
+# BACKENDS:  Local LAN (Ollama), Cloud (Gemini / OpenRouter)
 # SOURCE:    Inspired by Open Source Community
 # ------------------------------------------------------------------------------
-# @version   1.0.8
+# @version   1.0.9
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -45,7 +45,7 @@ fi
 
 
 # --- Work vars --- 
-BEE_VERSION="1.0.8"
+BEE_VERSION="1.0.9"
 JOB_DIR=""
 PACKAGE_VERSION=""
 DO_SILENT="false"
@@ -124,6 +124,17 @@ CORE COMMAND OPTIONS:
   --update                Obtains the latest version and installs the scripts only for immediate use
   --exit                  Exit after processing parameter commands
 
+JOB MANAGEMENT OPTIONS:
+  --ask [QUESTION]        Ask a single general question to the LLM
+  --new [JOB]             Start new job & clear logs (or use 'new' as 1st arg)
+  --jobs                  Lists all local available jobs
+  --hubjobs               Lists all available jobs to download from the HiveHub collection
+  --drop=JOB              Permanently delete a specific job directory
+  --clone]JOB             Copy a specific local dataset to a the one specified in --target 
+  --target=JOB            The target JOB:VERSION of the cloned dataset
+  --clearrules            Clear Run rules (Always/Never/Replace) for current job
+  --clean                 Clear current job logs
+  
 HIVEHUB OPERATION OPTIONS:
   --review=JOB            Echo out all files of the global and job ruleset for review.
   --importall=JOB         Import all as job and global default dataset. Usually just run once.
@@ -146,16 +157,7 @@ DATA & RULE OPTIONS:
 LLM MODEL OPTIONS:
   --model=MODEL           Change active LLM resource (local, geminiflash, googleapi)
   --googleapikey=key      Set and store your obtained Google API key
-
-JOB MANAGEMENT OPTIONS:
-  --ask [QUESTION]        Ask a single general question to the LLM
-  --new [JOB]             Start new job & clear logs (or use 'new' as 1st arg)
-  --jobs                  Lists all local available jobs
-  --drop=JOB              Permanently delete a specific job directory
-  --clone]JOB             Copy a specific local dataset to a the one specified in --target 
-  --target=JOB            The target JOB:VERSION of the cloned dataset
-  --clearrules            Clear Run rules (Always/Never/Replace) for current job
-  --clean                 Clear current job logs
+  --openrouterapikey=key  Set and store your obtained OpenRouter API key
 "
 }
 
@@ -364,14 +366,25 @@ while [[ $# -gt 0 ]]; do
                 end_program 1 "Missing API KEY value. Syntax: --googleapikey=key"
             fi
             EXPORT_API_KEY=${EXPORT_API_KEY:-}
-            sed -i '/GEMINI_API_KEY/d' "$USER_LOCAL_DIR/models/googleapi.conf"
-            sed -i '/GEMINI_API_KEY/d' "$USER_LOCAL_DIR/models/geminiflash.conf"
-            echo "GEMINI_API_KEY=\"$EXPORT_API_KEY\"" >> "$USER_LOCAL_DIR/models/googleapi.conf"
-            echo "GEMINI_API_KEY=\"$EXPORT_API_KEY\"" >> "$USER_LOCAL_DIR/models/geminiflash.conf"
+            sed -i '/API_KEY/d' "$USER_LOCAL_DIR/models/googleapi.conf"
+            sed -i '/API_KEY/d' "$USER_LOCAL_DIR/models/geminiflash.conf"
+            echo "API_KEY=\"$EXPORT_API_KEY\"" >> "$USER_LOCAL_DIR/models/googleapi.conf"
+            echo "API_KEY=\"$EXPORT_API_KEY\"" >> "$USER_LOCAL_DIR/models/geminiflash.conf"
             echo "[NOTICE] Google API Key changed and stored."
             shift
             ;; 
-
+        --openrouterapikey=*)
+            EXPORT_API_KEY="${1#*=}"
+            if [[ -z "$EXPORT_API_KEY" ]]; then
+                end_program 1 "Missing API KEY value. Syntax: --openrouterapikey=key"
+            fi
+            EXPORT_API_KEY=${EXPORT_API_KEY:-}
+            sed -i '/API_KEY/d' "$USER_LOCAL_DIR/models/openrouter.conf"
+            echo "API_KEY=\"$EXPORT_API_KEY\"" >> "$USER_LOCAL_DIR/models/openrouter.conf"
+            echo "[NOTICE] OpenRouter API Key changed and stored."
+            shift
+            ;; 
+            
         --review) DO_REVIEW="true"; shift 1 ;;
         
         --exportall=*)
