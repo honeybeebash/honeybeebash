@@ -14,6 +14,9 @@ echo -e "\n-------------------------------------------------------"
 echo "           $ICON_BEE HONEYBEE BASH INSTALLER                  "
 echo -e "-------------------------------------------------------\n"
 
+sed -i 's/\r$//' bee.sh monitor.sh detector.py
+sed -i 's/\r$//' models/* install/* config-default/*
+
 # --- Obtain basic config ---
 if [[ ! -f "config-default/bee.conf-default" ]]; then
     echo "ERROR: Can not find config-default/bee.conf-default. "
@@ -455,7 +458,7 @@ HONEYBEE_PATHS=(
 FAIL=""
 for path in "${HONEYBEE_PATHS[@]}"; do
     if [ ! -f "$path" ]; then
-        echo "ICON_CRITICAL Missing file: $path"
+        echo "$ICON_CRITICAL Missing file: $path"
         echo "$ICON_FAIL There were one or more files missing. Check your download and try again."
         exit 1
     fi

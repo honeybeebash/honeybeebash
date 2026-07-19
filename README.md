@@ -1,7 +1,7 @@
 ```text
 # ---------------------------------------------------------
 # HoneyBeeBash (The Buzzy Bash Agent)
-# Controlled by AI: LAN or GeminiFlash or GoogleApi
+# Controlled by AI: local Ollama, Google or OpenRouter
 # Quad-Tiered Risk Mitigation LLM+Black+White+Trained
 # Inspired by: GitHub Open Source Security Community
 # Training by:
@@ -11,7 +11,7 @@
 
 
 ## Project Info
-**Version:** 1.0.8
+**Version:** 1.0.9
 **Author:** M.D.P de Clerck ([mike@clerck.nl](mailto:mike@clerck.nl))  
 **License:** [GNU General Public License v3](LICENSE)
 
@@ -53,11 +53,11 @@ commands, Bee.sh utilizes a hybrid cognitive model:
 The Pre-frontal Cortex (AI)
 Handles complex reasoning and task planning.
 
-The Survival Instinct (Signatures & SciKit Heuristics)
-A "primitive" safety layer that intercepts intercepts destructive 
-path execution attempts (malformed or dangerous commands) before they
- reach the kernel. Even if the AI fails, the signature-based safety 
- net prevents system-level catastrophes.
+The Survival Instinct (Signatures & SciKit Heuristics) A "primitive"
+safety layer that intercepts destructive path execution attempts 
+(malformed or dangerous commands) before they reach the kernel. 
+Even if the AI fails, the signature-based safety net prevents 
+system-level catastrophes.
 
 The Human Factor
 If the LLM cannot decide if the command is low risk it will request
@@ -68,16 +68,17 @@ human response to proceed.
 The framework operates on a feedback loop where AI-driven logic is 
 constrained by rigid, heuristic safety boundaries as shown below:
 
-      HIVE <--> QUEENBEE <--> MONITOR
-                    ^           ^     
+      HIVE <--> HIVETOOL <--> MONITOR
+                    ^           ^ 
+                    +           |                    
                     v           |              
                    BEE <--> JOB WORKSPACE
                     |           v     ^                   
-   GLOBAL RULES --> X <-- JOB RULES   |
+   GLOBAL RULES --> + <-- JOB RULES   |
                     v                 |
       OS <--> BASH CONTROL --> COMMAND OUTPUT
 
-Note that the QueenBee hive tool requires an upgrade. 
+Note that the Hive tool requires an upgrade. 
 
 
 
@@ -93,11 +94,11 @@ automatically if needed;
 bc, awk, curl, wget, jq, zip, unzip, dos2unix, screen, openssl
 
 The following required Python modules will be installed automatically
-if needed;
+in a 'backpack' directory if needed;
 sciKit-learn, pandas, joblib
 
 For local LLM usage the following are suggested;
-docker, ollama, qwen2.5-coder
+docker, ollama, qwen2.5-coder or another LLM
 
 I am working on a combined install script for this but some are 
 already available online.
@@ -125,7 +126,7 @@ You can find example output and logs on the website https://honeybeebash.com/exa
 
 ## Usage:
 
-Find below available parameters of Bee. 
+Find below available parameters when using Bee. 
 Note that after installation 'bee' should be a working symbolic link to bee.sh.
  
 
@@ -145,6 +146,17 @@ CORE COMMAND OPTIONS:
   --update                Obtains the latest version and installs the scripts only for immediate use
   --exit                  Exit after processing parameter commands
 
+JOB MANAGEMENT OPTIONS:
+  --ask [QUESTION]        Ask a single general question to the LLM
+  --new [JOB]             Start new job & clear logs (or use 'new' as 1st arg)
+  --jobs                  Lists all local available jobs
+  --hubjobs               Lists all available jobs to download from the HiveHub collection
+  --drop=JOB              Permanently delete a specific job directory
+  --clone=JOB             Copy a specific local dataset to a the one specified in --target 
+  --target=JOB            The target JOB:VERSION of the cloned dataset
+  --clearrules            Clear Run rules (Always/Never/Replace) for current job
+  --clean                 Clear current job logs
+  
 HIVEHUB OPERATION OPTIONS:
   --review=JOB            Echo out all files of the global and job ruleset for review.
   --importall=JOB         Import all as job and global default dataset. Usually just run once.
@@ -165,18 +177,9 @@ DATA & RULE OPTIONS:
   --forget=\"CMD\"         Remove a command from the job rulesets
 
 LLM MODEL OPTIONS:
-  --model=MODEL           Change active LLM resource (local, geminiflash, googleapi)
+  --model=MODEL           Change active LLM resource (local, googlehttp, googleapi, openrouter)
   --googleapikey=key      Set and store your obtained Google API key
-
-JOB MANAGEMENT OPTIONS:
-  --ask [QUESTION]        Ask a single general question to the LLM
-  --new [JOB]             Start new job & clear logs (or use 'new' as 1st arg)
-  --jobs                  Lists all local available jobs
-  --drop=JOB              Permanently delete a specific job directory
-  --clone=JOB             Copy a specific local dataset to a the one specified in --target 
-  --target=JOB            The target JOB:VERSION of the cloned dataset
-  --clearrules            Clear Run rules (Always/Never/Replace) for current job
-  --clean                 Clear current job logs
+  --openrouterapikey=key  Set and store your obtained OpenRouter API key
 
 
 
@@ -266,11 +269,12 @@ ability to detect malicious commands until it is re-trained.
 
 Privacy risks and chills:
 Bee comes with a local and remote mode allowing for use of local 
-LAN basee ollama models to aid in the job.
+LAN based ollama models to aid in the job.
 This guarantees no data of your system makes it to the outside 
 world at ZERO token costs other then the power bill.
 Bee also comes with a ready-to-go remote mode that connects to 
-Gemini Flash to make use of its enourmous context window. 
+Gemini Flash by HTTP or API as well as OpenROuter to make use 
+of their enourmous context window. 
 
 
 
@@ -346,7 +350,8 @@ RUN_FORBIDDEN: Immediate rejection if a blacklisted string is detected.
 RUN_ALWAYS: Immediate execution for verified, high-trust command patterns.
 RUN_NEVER: Strict block for specific, absolute-match commandlines.
 RUN_REPLACE: Transparently swaps a requested command for a local alternative.
-PREDICT (dataset.csv): Rejects commands scoring high-risk via SciKit-trained weight analysis.
+PREDICT (dataset.csv): Rejects commands scoring high-risk via SciKit-trained 
+weight analysis.
 
 The global rulesets are stored in the main config directory. 
 For new jobs the global profile and RUN-rules are copied from config/ 
@@ -375,7 +380,7 @@ models.
 To enable autonomous jobs Bee has 3 automation modes which are;
 
 - RESTRICTIVE = Automate on perfect safety score only
-- PERMISSIVE = Automate if not blacklisted *au
+- PERMISSIVE = Automate if not blacklisted (autonomous)
 - ADAPTIVE = Automate on =<10% threat score
 - MANUAL = No automation, approve all commands
 
@@ -385,7 +390,7 @@ Normalization: Check RUN_REPLACE. If it matches, swap the command.
 Signature Check (Known): Does it contain a known undesired string. If yes, WARN.
 Signature Check (White): Is it in RUN_ALWAYS? If yes, EXECUTE.
 Signature Check (Black): Is it in RUN_NEVER? If yes, WARN.
-Autonomous Check: Are we in permissive mode. If yes then EXECUTE.
+Autonomy Check: Are we in permissive mode. If yes then EXECUTE.
 Heuristic Check (Local): Run detector.py.
     Score 10? EXECUTE.
     Score 9? EXECUTE (if adaptive).
@@ -441,7 +446,8 @@ in crontab -e
 
 HoneyBeeBash supports sharing of datasets (configuration files) to 
 improve the quality and security for the entire community. These files
-are managed via HiveHub, the central HoneyBee Hive repository.
+are managed via HiveHub, the central HoneyBee Hive repository at;
+  https://honeyBeeBash.com/hivehub
 
 HiveHub categorizes configurations by distribution. Users can 
 submit (--export), download (manual or with --import), upvote and 
@@ -531,22 +537,26 @@ Set and store your obtained HiveHub API key.
 
 The default prompt size is around 2000 tokens. 
 
+The minimal required context size for multi step tasks is near 16.000 
+tokens. Try to apply a model setting of at least a context size of 
+16.000 or more.
+
 Bee will often loop over the same command to see variations in time.
 Avoid answering Always to commands with usernames, use Yes to teach.
 
 Run --verbose=2 for maximum output. Suggest you turn your screen 
 90 degrees as it is a lot of output.
 
-For now Bee has no mail support but Bee can be instructed to write 
-to files in its workspace sub folders. 
+If issues occur or you are curious about more internal functioning 
+then you can add the flag --debug=3 for maximum debug output.
+
+For now Bee has no build in mail support but Bee can be instructed 
+to write to files in its workspace sub folders. 
 Such files could be used to detect and mail the results to the user.
 
 For long running jobs like monitor jobs i suggest setting the --delay 
 value longer than the default 5 seconds.
-
-If issues occur or you are curious about more internal functioning 
-then you can add the flag --debug=3 for maximum debug output.
-                
+            
 Bee runs sudo itself but this will require you to authenticate with
 a password regularly then. You can add a honeybee user to the sudoers 
 list or call bee with sudo -E.

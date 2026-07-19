@@ -13,7 +13,7 @@
 # PROJECT:   MONITOR.SH (The HoneyBee Bash Bee Monitor)
 # PURPOSE:   Monitor and control Bee jobs
 # ------------------------------------------------------------------------------
-# @version   1.0.8
+# @version   1.0.9
 # @author    M.D.P de Clerck (mike@clerck.nl)
 # © 2026     M.D.P de Clerck, the Netherlands
 # @license   GNU General Public License version 3
@@ -1152,7 +1152,7 @@ show_logs() {
                     SELECTED_RULE="$WSP/config/$fname"
                 else
                     echo -e "Global $fname:\n"
-                    tail -n 28 config/$fname
+                    tail -n 28 $WSP/config/$fname
                     SELECTED_RULE="$USER_CONFIG_DIR/$fname"
                     SELECTED_LOG="$USER_CONFIG_DIR/$fname"
                 fi
@@ -1613,31 +1613,29 @@ while true; do
         LAST_TAB=$TAB_NAME
     fi
 
-    # Controls
-    # -t 0.1 : Only wait 0.1 seconds before continuing
-    # -n 1   : Stop waiting as soon as ONE key is pressed
-    #read -t 0.1 -n 1 key
-    read -t 0.1 -rsn1 key
+    # Read the initial keystroke
+    read -t 0.1 -rsn 1 key
 
-    # Check for the Escape character (start of an arrow key)
-    if [[ $key == $'\e' ]]; then
+    # Check for the Escape character explicitly
+    if [[ "$key" == $'\e' ]]; then
         # Read the next two characters ([ and A/B/C/D)
-        read -rsn2 -t 0.01 rest
+        # Changed timeout to 0.1 so it doesn't drop the rest of the sequence on fast CPUs
+        read -t 0.1 -rsn 2 rest
         key+="$rest"
     fi
 
-
     key="${key,,}"
     case "$key" in
+    
         # --- QUIT MONITOR --- 
-        [qQ])
+        [q])
             tput cnorm # Restore the cursor before exiting 
             clear
             echo "Exiting Honey Bee Monitor."
             exit 0 ;;
 
         # --- REMOTE ANSWSER (Remote answering Bee Execution request) --- 
-        [yYoOsSnNaAeEzZ])
+        [yosnaez])
             # If Bee has a Execute request
             if [[ -f $WSP/PENDINGREQUEST ]]; then 
                 if [[ "$key" == "z" ]]; then
@@ -1655,7 +1653,7 @@ while true; do
             ;;
 
         # --- SENT REMOTE Quit --- 
-        [xX])
+        [x])
             if [[ ! -f "$WSP/MONITORCOMMAND" ]]; then 
                 echo "HALT" > "$WSP/MONITORCOMMAND"
             fi
@@ -1698,16 +1696,16 @@ while true; do
         "?"|"/") 
             LOGACTION=""; TASK=""; TAB_NAME="HELP" 
             ;;
-        [vV]) 
+        [v]) 
             LOGACTION=""; TASK="SELECTLOG" 
             ;;
-        [cC]) 
+        [c]) 
             edit_file 
             ;;
 
         # --- SWITCHES  ---
         # --- Switches to Head or Tail of a logfile --
-        [dD]) 
+        [d]) 
             if [[ "$LOGACTION" == "head" ]]; then
                 LOGACTION="tail"
             else
@@ -1715,7 +1713,7 @@ while true; do
             fi
             ;;
         # --- (Switches to Global or Job rules) --- 
-        [gG]) 
+        [g]) 
             if [[ "$RULETYPE" == "job" ]]; then
                 RULETYPE="global"
             else
@@ -1727,10 +1725,10 @@ while true; do
         # --- HIVE CONTROL (Launch and selection of Bee's) ---  
 
         # Hive config
-        [hH]) LOGACTION=""; SELECTED_LOG="$USER_CONFIG_DIR/config/hive.conf"; TASK="SHOWLOG"; TAB_NAME="" ;;
+        [h]) LOGACTION=""; SELECTED_LOG="$USER_CONFIG_DIR/hive.conf"; TASK="SHOWLOG"; TAB_NAME="" ;;
 
         # Monitor selected Bee
-        [mM]) 
+        [m]) 
             if [[ -n "$HOVER_BEE" ]]; then
                 SELECTED_BEE=$HOVER_BEE
                 # Switch to Bee shell
@@ -1739,7 +1737,7 @@ while true; do
 
                 # SELECTED_BEE="192.168.1.66:default:ACTIVE"
                 IFS=':' read -r B_ADDR B_JOB B_STATUS <<< "$SELECTED_BEE"
-                USER_NAME=$(awk -v ip="$B_ADDR" '$1 == ip {print $2}' config/hive.conf)
+                USER_NAME=$(awk -v ip="$B_ADDR" '$1 == ip {print $2}' $USER_CONFIG_DIR/hive.conf)
                 if [[ -n "$USER_NAME" ]]; then
                     # Note the @ symbol and the quoted command
                     #ssh -t "${USER_NAME}@${B_ADDR}" "cd $BASE_DIR && sudo ./bee.sh 2>&1 && sudo ./monitor.sh \"\" \"$B_JOB\""
@@ -1751,42 +1749,42 @@ while true; do
                     print_banner $(hostname)
                     sleep 3
                 else
-                    echo "Error: No user found for IP $B_ADDR in $USER_CONFIG_DIR/config/hive.conf"
+                    echo "Error: No user found for IP $B_ADDR in $USER_CONFIG_DIR/hive.conf"
                     sleep 3
                 fi
                 clear
             fi
             ;;
 
-        [jJ]) 
+        [j]) 
             LOGACTION=""; TASK="CHANGEJOB" 
             ;;
-        [tT]) 
+        [t]) 
             LOGACTION=""; TASK="TYPEJOB" 
             ;;
-        [lL]) 
+        [l]) 
             LOGACTION=""; TASK="LAUNCHBEE" 
             ;;
-        [bB]) 
+        [b]) 
             LOGACTION=""; TASK=""; LAST_TAB=$TAB_NAME; TAB_NAME="SELECTBEE" 
             ;;
 
         # --- CURSOR CONTROL (Up/Down=Select  Left/Right=NEXTTAB or Select) ---
-        $'\e[A') # UP Arrow
+        $'\e[a') # UP Arrow
             (( cursorY-- ))
             cursorY=$(( cursorY < 0 ? 0 : cursorY ))
             ;;
-        $'\e[B') # DOWN Arrow
+        $'\e[b') # DOWN Arrow
             # Action for Down
             (( cursorY++ ))
             ;;
-        $'\e[C') # RIGHT Arrow
-            (( cursorX++ ))
-            # Switch TAB?
-            ;;
-        $'\e[D') # LEFT Arrow
+        $'\e[d') # LEFT Arrow
             (( cursorX-- ))
             cursorX=$(( cursorX < 0 ? 0 : cursorX ))
+            # Switch TAB?
+            ;;
+        $'\e[c') # RIGHT Arrow
+            (( cursorX++ ))
             # Switch TAB?
             ;;
     esac
